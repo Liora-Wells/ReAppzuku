@@ -1,0 +1,75 @@
+# Gradle files
+.gradle/
+.gradle-local/
+build/
+*/build/
+app/build/
+local.properties
+
+# Android Studio
+.idea/
+*.iml
+.vscode/*
+!.vscode/settings.json
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+*.orig
+*.rej
+
+# Android outputs
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+
+# Signing files (IMPORTANT - never commit these)
+*.jks
+*.keystore
+key.properties
+keystore*.properties
+
+# Generated files
+bin/
+gen/
+out/
+release/
+
+# Lint
+/lint-baseline.xml
+app/lint-baseline.xml
+lint/generated/
+
+# Backups
+backups/
+
+# Editor/AI temporary files
+GEMINI.backup
+claude.md,backup
+.claude/
+
+# Local documentation / agent notes
+brain.md
+code_index.md
+running-log.md
+bugs.md
+codex-plan.md
+codex-review.md
+fix-uninstall.md
+options_plan.md
+claude.md
+claude.md,backup
+GEMINI.backup
+shortcut-kill.md
+
+# Captures files
+captures/
+.externalNativeBuild
+.cxx
+
+# Log files
+*.log
+.ralph-state/
