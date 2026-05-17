@@ -1,5 +1,6 @@
 plugins {
     id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
 }
 
 android {
@@ -63,10 +64,20 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
     buildFeatures {
         aidl true
         viewBinding true
+        compose true
     }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion '1.5.14'
+    }
+
     lint {
         baseline = file("lint-baseline.xml")
     }
@@ -92,4 +103,11 @@ dependencies {
     // WorkManager
     def work_version = "2.11.1"
     implementation "androidx.work:work-runtime:$work_version"
+
+    // Kotlin
+    implementation "androidx.core:core-ktx:1.16.0"
+
+    // Glance
+    implementation "androidx.glance:glance-appwidget:1.1.1"
+    implementation "androidx.glance:glance:1.1.1"
 }
