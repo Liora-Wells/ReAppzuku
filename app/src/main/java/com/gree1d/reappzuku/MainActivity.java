@@ -13,6 +13,7 @@ import android.os.Looper;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.text.SpannableString;
@@ -66,7 +67,8 @@ public class MainActivity extends BaseActivity {
 
     private int appliedAccent;
     private boolean appliedIsAmoled;
-    private int fabNavBarHeight = 0;
+    private int killButtonHeight = 0;
+    private int systemNavBarHeight = 0;
 
     private final Shizuku.OnRequestPermissionResultListener shizukuPermissionListener = (requestCode, grantResult) -> {
         if (grantResult == PackageManager.PERMISSION_GRANTED) {
@@ -124,11 +126,9 @@ public class MainActivity extends BaseActivity {
 
         cpuMonitor.setAppsList(fullAppsList);
 
-
+        setupKillButton();
         setupListeners();
-        setupBottomNavigation();
-        setupFabInsets();
-
+        setupKillButtonInsets();
 
         binding.swiperefreshlayout1.post(this::recalculateListHeight);
         loadSettingsAndApplyToManager();
@@ -141,19 +141,12 @@ public class MainActivity extends BaseActivity {
 
     private void recalculateListHeight() {
         int screenHeight = getResources().getDisplayMetrics().heightPixels;
-        int appNavBarPx = (int) (64 * getResources().getDisplayMetrics().density);
-
-        int systemNavHeight = 0;
-        WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(binding.swiperefreshlayout1);
-        if (insets != null) {
-            systemNavHeight = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
-        }
 
         int[] srlPos = new int[2];
         binding.swiperefreshlayout1.getLocationOnScreen(srlPos);
         int srlTop = srlPos[1];
 
-        int desiredHeight = screenHeight - appNavBarPx - systemNavHeight - srlTop;
+        int desiredHeight = screenHeight - killButtonHeight - systemNavBarHeight - srlTop;
         if (desiredHeight > 0) {
             android.view.ViewGroup.LayoutParams params = binding.swiperefreshlayout1.getLayoutParams();
             params.height = desiredHeight;
@@ -169,83 +162,48 @@ public class MainActivity extends BaseActivity {
         }
     }
 
-    private void setupFabInsets() {
+    private void setupKillButtonInsets() {
+        ViewCompat.setOnApplyWindowInsetsListener(binding.killButton, (v, insets) -> {
+            systemNavBarHeight = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+            int basePx = (int) (64 * getResources().getDisplayMetrics().density);
+            killButtonHeight = basePx + systemNavBarHeight;
 
+            android.view.ViewGroup.LayoutParams params = binding.killButton.getLayoutParams();
+            params.height = killButtonHeight;
+            binding.killButton.setLayoutParams(params);
+            binding.killButton.setPadding(0, 0, 0, systemNavBarHeight);
 
-        ViewCompat.setOnApplyWindowInsetsListener(binding.fab, (v, insets) -> {
-            fabNavBarHeight = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+            binding.swiperefreshlayout1.post(this::recalculateListHeight);
             return insets;
         });
     }
 
-
-    private void applyFabMargin() {
-        final int baseMarginPx = (int) (72 * getResources().getDisplayMetrics().density);
-        androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams params =
-                (androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams) binding.fab.getLayoutParams();
-        params.bottomMargin = baseMarginPx + fabNavBarHeight;
-        binding.fab.setLayoutParams(params);
+    private boolean isLightAccent() {
+        int accent = sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM);
+        return accent == ACCENT_APRICOT || accent == ACCENT_SKY ||
+                accent == ACCENT_PAPAYA || accent == ACCENT_LAVENDER ||
+                accent == ACCENT_MINT || accent == ACCENT_PEACH ||
+                accent == ACCENT_POWDER || accent == ACCENT_FOG;
     }
 
-    private void setupBottomNavigation() {
-        binding.bottomNavigation.navIconMain.setSelected(true);
-        binding.bottomNavigation.navIconSettings.setSelected(false);
-        binding.bottomNavigation.navIconStatistics.setSelected(false);
-        binding.bottomNavigation.navBtnMain.setOnClickListener(v -> {});
-        binding.bottomNavigation.navBtnSettings.setOnClickListener(v ->
-                startActivity(new Intent(this, SettingsActivity.class)));
-        binding.bottomNavigation.navBtnStatistics.setOnClickListener(v ->
-                startActivity(new Intent(this, StatisticsActivity.class)));
-        applyNavBarInsets(binding.bottomNavigation.getRoot());
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        setupBottomNavigation();
-
-        int newAccent = sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM);
-        boolean newIsAmoled = sharedPreferences.getBoolean(KEY_AMOLED, false);
-        if (newAccent != appliedAccent || newIsAmoled != appliedIsAmoled) {
-            recreate();
-            return;
+    private void setupKillButton() {
+        int accent = sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM);
+        if (accent != ACCENT_SYSTEM) {
+            int accentColor = resolveColorAttr(androidx.appcompat.R.attr.colorPrimary);
+            binding.killButton.setBackgroundTintList(
+                    android.content.res.ColorStateList.valueOf(accentColor));
+            binding.killButton.setTextColor(
+                    isLightAccent() ? Color.BLACK : Color.WHITE);
+        } else {
+            binding.killButton.setBackgroundTintList(
+                    android.content.res.ColorStateList.valueOf(Color.parseColor("#0136FF")));
+            binding.killButton.setTextColor(Color.WHITE);
         }
-        loadSettingsAndApplyToManager();
-        ensureServiceRunning();
-        loadBackgroundApps();
-        cpuMonitor.startMonitoring();
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        cpuMonitor.stopMonitoring();
-    }
-
-
-    private void ensureServiceRunning() {
-        if (sharedPreferences.getBoolean(KEY_AUTO_KILL_ENABLED, false)
-                && !ShappkyService.isRunning()) {
-            Intent intent = new Intent(this, ShappkyService.class);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent);
-            } else {
-                startService(intent);
-            }
-        }
-    }
-
-    private void loadSettingsAndApplyToManager() {
-        boolean showSystemApps = sharedPreferences.getBoolean(KEY_SHOW_SYSTEM_APPS, false);
-        boolean showPersistentApps = sharedPreferences.getBoolean(KEY_SHOW_PERSISTENT_APPS, false);
-        currentSortMode = sharedPreferences.getInt(KEY_SORT_MODE, AppConstants.SORT_MODE_DEFAULT);
-        appManager.setShowSystemApps(showSystemApps);
-        appManager.setShowPersistentApps(showPersistentApps);
     }
 
     private void setupListeners() {
         binding.swiperefreshlayout1.setOnRefreshListener(this::loadBackgroundApps);
-        binding.fab.setOnClickListener(view -> killSelectedApps());
+        binding.killButton.setOnClickListener(view -> killSelectedApps());
 
         listAdapter.setOnAppActionListener(new BackgroundAppsRecyclerViewAdapter.OnAppActionListener() {
             @Override
@@ -375,7 +333,6 @@ public class MainActivity extends BaseActivity {
                 .show();
     }
 
-
     private void showAppTriggersDialog(AppModel app) {
         AlertDialog loadingDialog = new AlertDialog.Builder(this)
                 .setTitle(getString(R.string.menu_app_triggers) + ": " + app.getAppName())
@@ -403,7 +360,6 @@ public class MainActivity extends BaseActivity {
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_app_triggers, null);
         LinearLayout container = dialogView.findViewById(R.id.triggers_container);
 
-
         if (status != null) {
             String statusLabel;
             switch (status) {
@@ -427,7 +383,6 @@ public class MainActivity extends BaseActivity {
             statusView.setLayoutParams(statusLp);
             container.addView(statusView);
         }
-
 
         List<AppTriggersAnalyzer.TriggerInfo> activeNow = new ArrayList<>();
         List<AppTriggersAnalyzer.TriggerInfo> canWake   = new ArrayList<>();
@@ -506,7 +461,6 @@ public class MainActivity extends BaseActivity {
         getTheme().resolveAttribute(attr, tv, true);
         return tv.data;
     }
-
 
     private void toggleListMembership(AppModel app, String listType) {
         String packageName = app.getPackageName();
@@ -625,7 +579,6 @@ public class MainActivity extends BaseActivity {
         return getString(R.string.main_restriction_menu_default);
     }
 
-
     private void loadBackgroundApps() {
         binding.swiperefreshlayout1.setRefreshing(true);
 
@@ -676,7 +629,7 @@ public class MainActivity extends BaseActivity {
                 .map(AppModel::getPackageName)
                 .collect(Collectors.toList());
 
-        binding.fab.hide();
+        binding.killButton.setVisibility(View.GONE);
 
         for (AppModel app : fullAppsList) {
             app.setSelected(false);
@@ -685,27 +638,81 @@ public class MainActivity extends BaseActivity {
 
         autoKillManager.killPackages(packagesToKill, () -> {
             loadBackgroundApps();
-            applyFabMargin();
-            binding.fab.show();
+            binding.killButton.setVisibility(View.GONE);
         });
     }
 
-    private void updateFabText() {
+    private void updateKillButtonText() {
         long count = fullAppsList.stream().filter(AppModel::isSelected).count();
-        binding.fab.setText(count >= 2
-                ? getString(R.string.fab_kill_apps)
-                : getString(R.string.fab_kill_app));
+        binding.killButton.setText(count >= 2
+                ? getString(R.string.fab_kill_apps) + " (" + count + ")"
+                : getString(R.string.fab_kill_app) + " (" + count + ")");
     }
 
     private void updateSelectMenuVisibility() {
         boolean hasSelection = fullAppsList.stream().anyMatch(AppModel::isSelected);
         if (hasSelection) {
-            applyFabMargin();
-            binding.fab.show();
-            updateFabText();
+            binding.killButton.setVisibility(View.VISIBLE);
+            updateKillButtonText();
         } else {
-            binding.fab.hide();
+            binding.killButton.setVisibility(View.GONE);
         }
+        updateSelectAllMenuItem();
+    }
+
+    private void updateSelectAllMenuItem() {
+        if (selectAllMenuItem == null) return;
+        boolean hasSelection = fullAppsList.stream().anyMatch(AppModel::isSelected);
+        if (hasSelection) {
+            selectAllMenuItem.setIcon(R.drawable.ic_unselect_all);
+            selectAllMenuItem.setTitle(getString(R.string.menu_deselect_all));
+        } else {
+            selectAllMenuItem.setIcon(R.drawable.ic_select_all);
+            selectAllMenuItem.setTitle(getString(R.string.menu_select_all));
+        }
+        tintMenuItem(selectAllMenuItem);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        int newAccent = sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM);
+        boolean newIsAmoled = sharedPreferences.getBoolean(KEY_AMOLED, false);
+        if (newAccent != appliedAccent || newIsAmoled != appliedIsAmoled) {
+            recreate();
+            return;
+        }
+        loadSettingsAndApplyToManager();
+        ensureServiceRunning();
+        loadBackgroundApps();
+        cpuMonitor.startMonitoring();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        cpuMonitor.stopMonitoring();
+    }
+
+    private void ensureServiceRunning() {
+        if (sharedPreferences.getBoolean(KEY_AUTO_KILL_ENABLED, false)
+                && !ShappkyService.isRunning()) {
+            Intent intent = new Intent(this, ShappkyService.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent);
+            } else {
+                startService(intent);
+            }
+        }
+    }
+
+    private void loadSettingsAndApplyToManager() {
+        boolean showSystemApps = sharedPreferences.getBoolean(KEY_SHOW_SYSTEM_APPS, false);
+        boolean showPersistentApps = sharedPreferences.getBoolean(KEY_SHOW_PERSISTENT_APPS, false);
+        currentSortMode = sharedPreferences.getInt(KEY_SORT_MODE, AppConstants.SORT_MODE_DEFAULT);
+        appManager.setShowSystemApps(showSystemApps);
+        appManager.setShowPersistentApps(showPersistentApps);
     }
 
     private void selectAll() {
@@ -738,12 +745,7 @@ public class MainActivity extends BaseActivity {
 
     private void tintMenuItem(MenuItem item) {
         if (item == null || item.getIcon() == null) return;
-        int accent = sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM);
-        boolean isNewAccent = (accent == ACCENT_APRICOT || accent == ACCENT_SKY ||
-                accent == ACCENT_PAPAYA || accent == ACCENT_LAVENDER ||
-                accent == ACCENT_MINT || accent == ACCENT_PEACH ||
-                accent == ACCENT_POWDER || accent == ACCENT_FOG);
-        item.getIcon().setTint(isNewAccent ? android.graphics.Color.BLACK : android.graphics.Color.WHITE);
+        item.getIcon().setTint(isLightAccent() ? android.graphics.Color.BLACK : android.graphics.Color.WHITE);
     }
 
     @Override
@@ -869,13 +871,7 @@ public class MainActivity extends BaseActivity {
     }
 
     private void applyToolbarIconTint(Menu menu) {
-        int accent = sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM);
-        boolean isNewAccent = (accent == ACCENT_APRICOT || accent == ACCENT_SKY ||
-                accent == ACCENT_PAPAYA || accent == ACCENT_LAVENDER ||
-                accent == ACCENT_MINT || accent == ACCENT_PEACH ||
-                accent == ACCENT_POWDER || accent == ACCENT_FOG);
-
-        int color = isNewAccent ? android.graphics.Color.BLACK : android.graphics.Color.WHITE;
+        int color = isLightAccent() ? android.graphics.Color.BLACK : android.graphics.Color.WHITE;
 
         int[] iconIds = {R.id.action_search, R.id.action_sort, R.id.action_select_all};
         for (int id : iconIds) {
@@ -886,5 +882,4 @@ public class MainActivity extends BaseActivity {
         }
         binding.toolbar.setTitleTextColor(color);
     }
-
 }
