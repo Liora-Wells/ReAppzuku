@@ -67,8 +67,6 @@ public class MainActivity extends BaseActivity {
 
     private int appliedAccent;
     private boolean appliedIsAmoled;
-    private int killButtonHeight = 0;
-    private int systemNavBarHeight = 0;
 
     private final Shizuku.OnRequestPermissionResultListener shizukuPermissionListener = (requestCode, grantResult) -> {
         if (grantResult == PackageManager.PERMISSION_GRANTED) {
@@ -129,7 +127,6 @@ public class MainActivity extends BaseActivity {
         setupKillButton();
         setupBottomNavigation();
         setupListeners();
-        setupKillButtonInsets();
 
         binding.swiperefreshlayout1.post(this::recalculateListHeight);
         loadSettingsAndApplyToManager();
@@ -142,12 +139,19 @@ public class MainActivity extends BaseActivity {
 
     private void recalculateListHeight() {
         int screenHeight = getResources().getDisplayMetrics().heightPixels;
+        int appNavBarPx = (int) (64 * getResources().getDisplayMetrics().density);
+
+        int systemNavHeight = 0;
+        WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(binding.swiperefreshlayout1);
+        if (insets != null) {
+            systemNavHeight = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+        }
 
         int[] srlPos = new int[2];
         binding.swiperefreshlayout1.getLocationOnScreen(srlPos);
         int srlTop = srlPos[1];
 
-        int desiredHeight = screenHeight - killButtonHeight - systemNavBarHeight - srlTop;
+        int desiredHeight = screenHeight - appNavBarPx - systemNavHeight - srlTop;
         if (desiredHeight > 0) {
             android.view.ViewGroup.LayoutParams params = binding.swiperefreshlayout1.getLayoutParams();
             params.height = desiredHeight;
@@ -173,22 +177,6 @@ public class MainActivity extends BaseActivity {
         binding.bottomNavigation.navBtnStatistics.setOnClickListener(v ->
                 startActivity(new Intent(this, StatisticsActivity.class)));
         applyNavBarInsets(binding.bottomNavigation.getRoot());
-    }
-
-    private void setupKillButtonInsets() {
-        ViewCompat.setOnApplyWindowInsetsListener(binding.coordinator, (v, insets) -> {
-            systemNavBarHeight = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
-            int basePx = (int) (64 * getResources().getDisplayMetrics().density);
-            killButtonHeight = basePx + systemNavBarHeight;
-
-            android.view.ViewGroup.LayoutParams params = binding.killButton.getLayoutParams();
-            params.height = killButtonHeight;
-            binding.killButton.setLayoutParams(params);
-            binding.killButton.setPadding(0, 0, 0, systemNavBarHeight);
-
-            binding.swiperefreshlayout1.post(this::recalculateListHeight);
-            return insets;
-        });
     }
 
     private boolean isLightAccent() {
@@ -643,6 +631,7 @@ public class MainActivity extends BaseActivity {
                 .collect(Collectors.toList());
 
         binding.killButton.setVisibility(View.GONE);
+        binding.bottomNavigation.getRoot().setVisibility(View.VISIBLE);
 
         for (AppModel app : fullAppsList) {
             app.setSelected(false);
@@ -651,7 +640,6 @@ public class MainActivity extends BaseActivity {
 
         autoKillManager.killPackages(packagesToKill, () -> {
             loadBackgroundApps();
-            binding.killButton.setVisibility(View.GONE);
         });
     }
 
@@ -665,10 +653,18 @@ public class MainActivity extends BaseActivity {
     private void updateSelectMenuVisibility() {
         boolean hasSelection = fullAppsList.stream().anyMatch(AppModel::isSelected);
         if (hasSelection) {
+            binding.bottomNavigation.getRoot().setVisibility(View.GONE);
+            int navBarHeight = 0;
+            WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(binding.coordinator);
+            if (insets != null) {
+                navBarHeight = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+            }
+            binding.killButton.setPadding(0, 0, 0, navBarHeight);
             binding.killButton.setVisibility(View.VISIBLE);
             updateKillButtonText();
         } else {
             binding.killButton.setVisibility(View.GONE);
+            binding.bottomNavigation.getRoot().setVisibility(View.VISIBLE);
         }
         updateSelectAllMenuItem();
     }
