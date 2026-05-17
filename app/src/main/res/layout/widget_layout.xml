@@ -5,12 +5,68 @@
     android:background="@drawable/widget_background"
     android:padding="12dp">
 
+    <ProgressBar
+        android:id="@+id/widget_ram_progress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="6dp"
+        android:layout_alignParentTop="true"
+        android:max="100"
+        android:progress="0" />
+
     <TextView
         android:id="@+id/widget_ram_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_below="@id/widget_ram_progress"
+        android:layout_alignParentRight="true"
+        android:layout_marginTop="2dp"
         android:text="RAM: —"
+        android:textColor="#CCFFFFFF"
+        android:textSize="10sp" />
+
+    <View
+        android:id="@+id/widget_divider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_below="@id/widget_ram_label"
+        android:layout_marginTop="6dp"
+        android:background="#22FFFFFF" />
+
+    <TextView
+        android:id="@+id/widget_kills_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/widget_divider"
+        android:layout_alignParentLeft="true"
+        android:layout_marginTop="6dp"
+        android:text="0 kills"
         android:textColor="@android:color/white"
-        android:textSize="12sp" />
+        android:textSize="13sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/widget_freed_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/widget_divider"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="6dp"
+        android:text="0 MB freed"
+        android:textColor="@android:color/white"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/widget_last_kill_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/widget_divider"
+        android:layout_alignParentRight="true"
+        android:layout_marginTop="6dp"
+        android:text="—"
+        android:textColor="@android:color/white"
+        android:textSize="13sp"
+        android:textStyle="bold" />
 
 </RelativeLayout>
