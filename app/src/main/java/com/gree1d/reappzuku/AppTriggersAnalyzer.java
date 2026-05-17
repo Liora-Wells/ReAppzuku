@@ -1340,4 +1340,3 @@ public class AppTriggersAnalyzer {
         return s.length() <= maxLen ? s : s.substring(0, maxLen);
     }
 }
-}
