@@ -659,6 +659,10 @@ public class MainActivity extends BaseActivity {
             if (insets != null) {
                 navBarHeight = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
             }
+            int basePx = (int) (64 * getResources().getDisplayMetrics().density);
+            android.view.ViewGroup.LayoutParams params = binding.killButton.getLayoutParams();
+            params.height = basePx + navBarHeight;
+            binding.killButton.setLayoutParams(params);
             binding.killButton.setPadding(0, 0, 0, navBarHeight);
             binding.killButton.setVisibility(View.VISIBLE);
             updateKillButtonText();
