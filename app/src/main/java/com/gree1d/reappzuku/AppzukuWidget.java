@@ -41,11 +41,12 @@ public class AppzukuWidget extends AppWidgetProvider {
         new Thread(() -> {
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_layout);
 
+            // --- RAM ---
             long totalRamMb = 0;
             long usedRamMb = 0;
             try (RandomAccessFile reader = new RandomAccessFile("/proc/meminfo", "r")) {
                 long totalKb = Long.parseLong(reader.readLine().replaceAll("\\D+", ""));
-                reader.readLine();
+                reader.readLine(); // MemFree — пропускаем
                 long availKb = Long.parseLong(reader.readLine().replaceAll("\\D+", ""));
                 totalRamMb = totalKb / 1024;
                 usedRamMb  = (totalKb - availKb) / 1024;
@@ -61,6 +62,7 @@ public class AppzukuWidget extends AppWidgetProvider {
                 views.setTextViewText(R.id.widget_ram_label, "RAM: —");
             }
 
+            // --- Kill stats (12h) ---
             int totalKills = 0;
             long totalRecoveredKb = 0;
             long lastKillTime = 0;
@@ -75,17 +77,17 @@ public class AppzukuWidget extends AppWidgetProvider {
                 }
             } catch (Exception ignored) {}
 
-            views.setTextViewText(R.id.widget_kills_text,
+            views.setTextViewText(R.id.widget_kills_value,
                     context.getString(R.string.widget_kills, totalKills));
 
-            views.setTextViewText(R.id.widget_freed_text,
+            views.setTextViewText(R.id.widget_freed_value,
                     formatRecoveredSize(context, totalRecoveredKb));
 
             if (lastKillTime > 0) {
                 DateFormat fmt = android.text.format.DateFormat.getTimeFormat(context);
-                views.setTextViewText(R.id.widget_last_kill_text, fmt.format(new Date(lastKillTime)));
+                views.setTextViewText(R.id.widget_last_kill_value, fmt.format(new Date(lastKillTime)));
             } else {
-                views.setTextViewText(R.id.widget_last_kill_text,
+                views.setTextViewText(R.id.widget_last_kill_value,
                         context.getString(R.string.widget_no_kills));
             }
 
