@@ -109,7 +109,7 @@
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/appwidget_info" />
+                android:resource="@xml/widget_info" />
         </receiver>
 
         <provider
