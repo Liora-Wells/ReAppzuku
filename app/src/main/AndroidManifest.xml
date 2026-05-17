@@ -7,6 +7,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <application 
         android:allowBackup="true" 
         android:icon="@mipmap/ic_launcher" 
@@ -15,12 +19,15 @@
         android:supportsRtl="true" 
         android:theme="@style/AppTheme">
         <activity
-            android:name=".HelpActivity"
-            android:label="Help"
+            android:name=".AppResourceDetailActivity"
+            android:parentActivityName=".StatisticsActivity"
             android:theme="@style/AppTheme" />
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/AppTheme.NoAnimation"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -38,7 +45,13 @@
         <activity
             android:name=".SettingsActivity"
             android:exported="false"
-            android:parentActivityName=".MainActivity" />
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/AppTheme.NoAnimation" />
+        <activity
+            android:name=".StatisticsActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/AppTheme.NoAnimation" />
         <service
             android:name=".ShappkyQuickTile"
             android:icon="@drawable/ic_force_stop"
@@ -52,6 +65,7 @@
                 android:name="android.service.quicksettings.ACTIVE_TILE"
                 android:value="true" />
         </service>
+        
         <service
             android:name=".ShappkyBackgroundKillTile"
             android:icon="@drawable/ic_force_stop"
@@ -71,14 +85,22 @@
             android:foregroundServiceType="dataSync"
             android:exported="false" />
 
-        <receiver android:name=".KillTriggerReceiver" android:exported="false" />
+        <receiver android:name=".KillTriggerReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="com.gree1d.reappzuku.IDLE_FREEZE" />
+            </intent-filter>
+        </receiver>
 
-        <receiver android:name=".BootReceiver" android:exported="false">
+        <receiver android:name=".BootReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".RestrictionsScheduler$SchedulerReceiver"
+            android:exported="false" />
+        
         <receiver android:name=".AppzukuWidget" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
