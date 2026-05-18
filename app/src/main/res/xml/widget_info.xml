@@ -2,9 +2,12 @@
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
     android:minHeight="55dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
     android:updatePeriodMillis="0"
     android:previewImage="@drawable/ic_shappky"
     android:initialLayout="@layout/glance_default_loading_layout"
     android:resizeMode="horizontal|vertical"
+    android:widgetFeatures="rounded_corners"
     android:widgetCategory="home_screen">
 </appwidget-provider>
