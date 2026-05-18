@@ -8,6 +8,5 @@
     android:previewImage="@drawable/ic_shappky"
     android:initialLayout="@layout/glance_default_loading_layout"
     android:resizeMode="horizontal|vertical"
-    android:widgetFeatures="rounded_corners"
     android:widgetCategory="home_screen">
 </appwidget-provider>
