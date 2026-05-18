@@ -8,6 +8,10 @@ public final class PreferenceKeys {
 
     public static final String PREFERENCES_NAME = "AppPreferences";
 
+    // Custom accents
+    public static final String KEY_ACCENT_CUSTOM_COLOR = "accent_custom_color";
+    public static final String KEY_ACCENT_ON_COLOR = "accent_on_color";
+    
     // App Lists
     public static final String KEY_HIDDEN_APPS = "hidden_apps";
     public static final String KEY_WHITELISTED_APPS = "whitelisted_apps";
