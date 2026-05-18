@@ -203,6 +203,11 @@
     <string name="settings_notification_mode_title">Notifications</string>
     <string name="settings_notification_mode_all">All</string>
     <string name="settings_notification_mode_important_only">Important only</string>
+    <string name="settings_accent_custom_label">Custom color</string>
+    <string name="settings_accent_custom_picker_title">Pick accent color</string>
+    <string name="settings_accent_on_color_title">Text and icon color</string>
+    <string name="settings_accent_on_color_white">White</string>
+    <string name="settings_accent_on_color_black">Black</string>
 
     <string-array name="settings_theme_labels">
         <item>@string/settings_theme_system</item>
