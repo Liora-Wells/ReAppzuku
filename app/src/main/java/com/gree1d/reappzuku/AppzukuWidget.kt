@@ -29,6 +29,8 @@ import androidx.glance.unit.ColorProvider
 import com.gree1d.reappzuku.AppConstants.STATS_HISTORY_DURATION_MS
 import com.gree1d.reappzuku.db.AppDatabase
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.RandomAccessFile
 import java.text.DateFormat
@@ -142,6 +144,13 @@ class AppzukuWidget : GlanceAppWidget() {
             val manager = GlanceAppWidgetManager(context)
             val ids = manager.getGlanceIds(AppzukuWidget::class.java)
             ids.forEach { AppzukuWidget().update(context, it) }
+        }
+
+        @JvmStatic
+        fun updateAllWidgetsFromJava(context: Context) {
+            GlobalScope.launch {
+                updateAllWidgets(context)
+            }
         }
 
         private fun loadData(context: Context): WidgetData {

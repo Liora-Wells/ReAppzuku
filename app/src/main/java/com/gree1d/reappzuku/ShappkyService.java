@@ -294,7 +294,7 @@ public class ShappkyService extends Service {
             @Override
             public void run() {
                 if (!isRunning) return;
-                AppzukuWidget.updateAllWidgets(ShappkyService.this);
+                AppzukuWidget.updateAllWidgetsFromJava(ShappkyService.this);
                 handler.postDelayed(this, WIDGET_UPDATE_INTERVAL_MS);
             }
         };
