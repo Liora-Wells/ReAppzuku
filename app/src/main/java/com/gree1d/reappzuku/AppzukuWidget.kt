@@ -71,7 +71,7 @@ class AppzukuWidget : GlanceAppWidget() {
             modifier = GlanceModifier
                 .fillMaxSize()
                 .background(BgSurface)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Top
         ) {
             // ── RAM row ──────────────────────────────────────────────────────
@@ -155,24 +155,24 @@ class AppzukuWidget : GlanceAppWidget() {
             modifier = modifier
                 .background(BgCard)
                 .cornerRadius(12.dp)
-                .padding(horizontal = 10.dp, vertical = 5.dp),
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.Start
         ) {
             Text(
                 text = value,
                 style = TextStyle(
                     color = ColorProvider(TextPrimary),
-                    fontSize = 14.sp,
+                    fontSize = 17.sp,
                     fontWeight = FontWeight.Bold
                 )
             )
-            Spacer(modifier = GlanceModifier.height(1.dp))
+            Spacer(modifier = GlanceModifier.height(2.dp))
             // цветная метка вместо цветной черты — меньше визуального шума
             Text(
                 text = label,
                 style = TextStyle(
                     color = ColorProvider(accentColor.copy(alpha = 0.85f)),
-                    fontSize = 8.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Medium
                 )
             )
