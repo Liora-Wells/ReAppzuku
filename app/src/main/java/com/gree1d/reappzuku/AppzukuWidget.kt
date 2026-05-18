@@ -37,6 +37,7 @@ import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
 
+@Keep
 class AppzukuWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -213,6 +214,7 @@ class AppzukuWidget : GlanceAppWidget() {
     )
 }
 
+@Keep
 class AppzukuWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = AppzukuWidget()
 }
