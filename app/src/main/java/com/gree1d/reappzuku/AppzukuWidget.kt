@@ -1,7 +1,6 @@
 package com.gree1d.reappzuku
 
 import android.content.Context
-import androidx.annotation.Keep
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -23,6 +22,7 @@ import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.width
+import androidx.glance.layout.wrapContentWidth
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
@@ -37,6 +37,7 @@ import java.io.RandomAccessFile
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.annotation.Keep
 
 @Keep
 class AppzukuWidget : GlanceAppWidget() {
@@ -50,35 +51,45 @@ class AppzukuWidget : GlanceAppWidget() {
 
     @Composable
     private fun WidgetContent(data: WidgetData) {
+        val ramColor = when {
+            data.ramProgress > 0.85f -> Color(0xFFEF5350)
+            data.ramProgress > 0.65f -> Color(0xFFFFB300)
+            else -> Color(0xFF4FC3F7)
+        }
+
         Column(
             modifier = GlanceModifier
                 .fillMaxSize()
-                .background(Color(0xBB17181C))
-                .padding(12.dp)
+                .background(Color(0xCC17181C))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            androidx.glance.appwidget.LinearProgressIndicator(
-                progress = data.ramProgress,
-                modifier = GlanceModifier.fillMaxWidth().height(6.dp),
-                color = ColorProvider(Color(0xFF4FC3F7)),
-                backgroundColor = ColorProvider(Color(0x33FFFFFF))
-            )
-
-            Spacer(modifier = GlanceModifier.height(4.dp))
-
-            Text(
-                text = data.ramLabel,
-                modifier = GlanceModifier.fillMaxWidth(),
-                style = TextStyle(
-                    color = ColorProvider(Color(0xCCFFFFFF)),
-                    fontSize = 10.sp
+            Box(
+                modifier = GlanceModifier.fillMaxWidth().height(22.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.glance.appwidget.LinearProgressIndicator(
+                    progress = data.ramProgress,
+                    modifier = GlanceModifier.fillMaxWidth().height(22.dp),
+                    color = ColorProvider(ramColor),
+                    backgroundColor = ColorProvider(Color(0x33FFFFFF))
                 )
-            )
+                Text(
+                    text = data.ramLabel,
+                    style = TextStyle(
+                        color = ColorProvider(Color.White),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+            }
 
-            Spacer(modifier = GlanceModifier.height(10.dp))
+            Spacer(modifier = GlanceModifier.height(6.dp))
 
             Row(
                 modifier = GlanceModifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 StatCell(
                     value = data.kills,
@@ -89,10 +100,9 @@ class AppzukuWidget : GlanceAppWidget() {
                 Box(
                     modifier = GlanceModifier
                         .width(1.dp)
-                        .height(36.dp)
+                        .height(28.dp)
                         .background(Color(0x33FFFFFF))
-                ) {
-                }
+                ) {}
 
                 StatCell(
                     value = data.freed,
@@ -103,10 +113,9 @@ class AppzukuWidget : GlanceAppWidget() {
                 Box(
                     modifier = GlanceModifier
                         .width(1.dp)
-                        .height(36.dp)
+                        .height(28.dp)
                         .background(Color(0x33FFFFFF))
-                ) {
-                }
+                ) {}
 
                 StatCell(
                     value = data.lastKill,
@@ -121,13 +130,14 @@ class AppzukuWidget : GlanceAppWidget() {
     private fun StatCell(value: String, label: String, modifier: GlanceModifier) {
         Column(
             modifier = modifier,
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = value,
                 style = TextStyle(
                     color = ColorProvider(Color.White),
-                    fontSize = 16.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
             )
