@@ -71,6 +71,7 @@ class AppzukuWidget : GlanceAppWidget() {
             modifier = GlanceModifier
                 .fillMaxSize()
                 .background(BgSurface)
+                .cornerRadius(20.dp)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Top
         ) {
