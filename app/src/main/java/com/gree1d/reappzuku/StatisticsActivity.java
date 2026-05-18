@@ -127,14 +127,23 @@ public class StatisticsActivity extends BaseActivity {
     private void setupToolbar() {
         setSupportActionBar(binding.toolbar);
         int accent = sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM);
-        if (accent == ACCENT_SYSTEM) {
+        if (accent == ACCENT_CUSTOM) {
+            int customColor = sharedPreferences.getInt(KEY_ACCENT_CUSTOM_COLOR, ACCENT_CUSTOM_DEFAULT_COLOR);
+            int onColor = sharedPreferences.getInt(KEY_ACCENT_ON_COLOR, ACCENT_ON_WHITE) == ACCENT_ON_BLACK
+                    ? Color.BLACK : Color.WHITE;
+            binding.toolbar.setBackgroundColor(customColor);
+            binding.toolbar.setTitleTextColor(onColor);
+            binding.toolbar.setNavigationIconTint(onColor);
+        } else if (accent == ACCENT_SYSTEM) {
             binding.toolbar.setBackgroundColor(ContextCompat.getColor(this, R.color.toolbar_navy));
+            binding.toolbar.setTitleTextColor(Color.WHITE);
+        } else {
+            boolean isLightAccent = (accent == ACCENT_APRICOT || accent == ACCENT_SKY ||
+                    accent == ACCENT_PAPAYA || accent == ACCENT_LAVENDER ||
+                    accent == ACCENT_MINT || accent == ACCENT_PEACH ||
+                    accent == ACCENT_POWDER || accent == ACCENT_FOG);
+            binding.toolbar.setTitleTextColor(isLightAccent ? Color.BLACK : Color.WHITE);
         }
-        boolean isNewAccent = (accent == ACCENT_APRICOT || accent == ACCENT_SKY ||
-                accent == ACCENT_PAPAYA || accent == ACCENT_LAVENDER ||
-                accent == ACCENT_MINT || accent == ACCENT_PEACH ||
-                accent == ACCENT_POWDER || accent == ACCENT_FOG);
-        binding.toolbar.setTitleTextColor(isNewAccent ? Color.BLACK : Color.WHITE);
     }
 
     private void setupBottomNavigation() {

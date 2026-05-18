@@ -72,6 +72,7 @@ public class MainActivity extends BaseActivity {
 
     private int appliedAccent;
     private boolean appliedIsAmoled;
+    private int appliedCustomColor;
 
     private final Shizuku.OnRequestPermissionResultListener shizukuPermissionListener = (requestCode, grantResult) -> {
         if (grantResult == PackageManager.PERMISSION_GRANTED) {
@@ -96,14 +97,24 @@ public class MainActivity extends BaseActivity {
         setContentView(binding.getRoot());
 
         setSupportActionBar(binding.toolbar);
-        binding.toolbar.setTitleTextColor(Color.WHITE);
         int accent = sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM);
         boolean isAmoled = sharedPreferences.getBoolean(KEY_AMOLED, false);
-        if (!isAmoled && accent == ACCENT_SYSTEM) {
+        if (accent == ACCENT_CUSTOM) {
+            int customColor = sharedPreferences.getInt(KEY_ACCENT_CUSTOM_COLOR, ACCENT_CUSTOM_DEFAULT_COLOR);
+            int onColor = sharedPreferences.getInt(KEY_ACCENT_ON_COLOR, ACCENT_ON_WHITE) == ACCENT_ON_BLACK
+                    ? Color.BLACK : Color.WHITE;
+            binding.toolbar.setBackgroundColor(customColor);
+            binding.toolbar.setTitleTextColor(onColor);
+            binding.toolbar.setNavigationIconTint(onColor);
+        } else if (!isAmoled && accent == ACCENT_SYSTEM) {
             binding.toolbar.setBackgroundColor(ContextCompat.getColor(this, R.color.toolbar_navy));
+            binding.toolbar.setTitleTextColor(Color.WHITE);
+        } else {
+            binding.toolbar.setTitleTextColor(isLightAccent() ? Color.BLACK : Color.WHITE);
         }
         appliedAccent = accent;
         appliedIsAmoled = isAmoled;
+        appliedCustomColor = sharedPreferences.getInt(KEY_ACCENT_CUSTOM_COLOR, ACCENT_CUSTOM_DEFAULT_COLOR);
 
         shellManager = new ShellManager(this, handler, executor);
         appManager = new BackgroundAppManager(this, handler, executor, shellManager);
@@ -186,6 +197,9 @@ public class MainActivity extends BaseActivity {
 
     private boolean isLightAccent() {
         int accent = sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM);
+        if (accent == ACCENT_CUSTOM) {
+            return sharedPreferences.getInt(KEY_ACCENT_ON_COLOR, ACCENT_ON_WHITE) == ACCENT_ON_BLACK;
+        }
         return accent == ACCENT_APRICOT || accent == ACCENT_SKY ||
                 accent == ACCENT_PAPAYA || accent == ACCENT_LAVENDER ||
                 accent == ACCENT_MINT || accent == ACCENT_PEACH ||
@@ -194,12 +208,18 @@ public class MainActivity extends BaseActivity {
 
     private void setupKillButton() {
         int accent = sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM);
-        if (accent != ACCENT_SYSTEM) {
+        if (accent == ACCENT_CUSTOM) {
+            int customColor = sharedPreferences.getInt(KEY_ACCENT_CUSTOM_COLOR, ACCENT_CUSTOM_DEFAULT_COLOR);
+            int onColor = sharedPreferences.getInt(KEY_ACCENT_ON_COLOR, ACCENT_ON_WHITE) == ACCENT_ON_BLACK
+                    ? Color.BLACK : Color.WHITE;
+            binding.killButton.setBackgroundTintList(
+                    android.content.res.ColorStateList.valueOf(customColor));
+            binding.killButton.setTextColor(onColor);
+        } else if (accent != ACCENT_SYSTEM) {
             int accentColor = resolveColorAttr(androidx.appcompat.R.attr.colorPrimary);
             binding.killButton.setBackgroundTintList(
                     android.content.res.ColorStateList.valueOf(accentColor));
-            binding.killButton.setTextColor(
-                    isLightAccent() ? Color.BLACK : Color.WHITE);
+            binding.killButton.setTextColor(isLightAccent() ? Color.BLACK : Color.WHITE);
         } else {
             binding.killButton.setBackgroundTintList(
                     android.content.res.ColorStateList.valueOf(Color.parseColor("#0136FF")));
@@ -760,7 +780,9 @@ public class MainActivity extends BaseActivity {
 
         int newAccent = sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM);
         boolean newIsAmoled = sharedPreferences.getBoolean(KEY_AMOLED, false);
-        if (newAccent != appliedAccent || newIsAmoled != appliedIsAmoled) {
+        int newCustomColor = sharedPreferences.getInt(KEY_ACCENT_CUSTOM_COLOR, ACCENT_CUSTOM_DEFAULT_COLOR);
+        if (newAccent != appliedAccent || newIsAmoled != appliedIsAmoled
+                || (newAccent == ACCENT_CUSTOM && newCustomColor != appliedCustomColor)) {
             recreate();
             return;
         }
@@ -952,7 +974,14 @@ public class MainActivity extends BaseActivity {
     }
 
     private void applyToolbarIconTint(Menu menu) {
-        int color = isLightAccent() ? android.graphics.Color.BLACK : android.graphics.Color.WHITE;
+        int accent = sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM);
+        int color;
+        if (accent == ACCENT_CUSTOM) {
+            color = sharedPreferences.getInt(KEY_ACCENT_ON_COLOR, ACCENT_ON_WHITE) == ACCENT_ON_BLACK
+                    ? Color.BLACK : Color.WHITE;
+        } else {
+            color = isLightAccent() ? Color.BLACK : Color.WHITE;
+        }
 
         int[] iconIds = {R.id.action_search, R.id.action_sort, R.id.action_select_all};
         for (int id : iconIds) {
