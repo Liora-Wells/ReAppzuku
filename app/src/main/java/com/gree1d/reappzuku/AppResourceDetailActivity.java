@@ -87,14 +87,25 @@ public class AppResourceDetailActivity extends BaseActivity {
             getSupportActionBar().setTitle(appName != null ? appName : packageName);
         }
         int accent = sharedPreferences.getInt(PreferenceKeys.KEY_ACCENT, AppConstants.ACCENT_SYSTEM);
-        if (accent == AppConstants.ACCENT_SYSTEM) {
+        if (accent == AppConstants.ACCENT_CUSTOM) {
+            int customColor = sharedPreferences.getInt(PreferenceKeys.KEY_ACCENT_CUSTOM_COLOR, AppConstants.ACCENT_CUSTOM_DEFAULT_COLOR);
+            int onColor = sharedPreferences.getInt(PreferenceKeys.KEY_ACCENT_ON_COLOR, AppConstants.ACCENT_ON_WHITE) == AppConstants.ACCENT_ON_BLACK
+                    ? Color.BLACK : Color.WHITE;
+            binding.toolbar.setBackgroundColor(customColor);
+            binding.toolbar.setTitleTextColor(onColor);
+            if (binding.toolbar.getNavigationIcon() != null)
+                androidx.core.graphics.drawable.DrawableCompat.setTint(
+                        binding.toolbar.getNavigationIcon(), onColor);
+        } else if (accent == AppConstants.ACCENT_SYSTEM) {
             binding.toolbar.setBackgroundColor(ContextCompat.getColor(this, R.color.toolbar_navy));
+            binding.toolbar.setTitleTextColor(Color.WHITE);
+        } else {
+            boolean isLightAccent = (accent == AppConstants.ACCENT_APRICOT || accent == AppConstants.ACCENT_SKY ||
+                    accent == AppConstants.ACCENT_PAPAYA   || accent == AppConstants.ACCENT_LAVENDER ||
+                    accent == AppConstants.ACCENT_MINT     || accent == AppConstants.ACCENT_PEACH ||
+                    accent == AppConstants.ACCENT_POWDER   || accent == AppConstants.ACCENT_FOG);
+            binding.toolbar.setTitleTextColor(isLightAccent ? Color.BLACK : Color.WHITE);
         }
-        boolean isNewAccent = (accent == AppConstants.ACCENT_APRICOT || accent == AppConstants.ACCENT_SKY ||
-                accent == AppConstants.ACCENT_PAPAYA   || accent == AppConstants.ACCENT_LAVENDER ||
-                accent == AppConstants.ACCENT_MINT     || accent == AppConstants.ACCENT_PEACH ||
-                accent == AppConstants.ACCENT_POWDER   || accent == AppConstants.ACCENT_FOG);
-        binding.toolbar.setTitleTextColor(isNewAccent ? Color.BLACK : Color.WHITE);
     }
 
     private void setupAppCard() {
@@ -114,6 +125,15 @@ public class AppResourceDetailActivity extends BaseActivity {
             binding.tabDetailPeriod.addTab(binding.tabDetailPeriod.newTab().setText(label));
         }
         binding.tabDetailPeriod.selectTab(binding.tabDetailPeriod.getTabAt(selectedPeriodIdx));
+
+        int accent = sharedPreferences.getInt(PreferenceKeys.KEY_ACCENT, AppConstants.ACCENT_SYSTEM);
+        if (accent == AppConstants.ACCENT_CUSTOM) {
+            int color = sharedPreferences.getInt(PreferenceKeys.KEY_ACCENT_CUSTOM_COLOR, AppConstants.ACCENT_CUSTOM_DEFAULT_COLOR);
+            binding.tabDetailPeriod.setSelectedTabIndicatorColor(color);
+            binding.tabDetailPeriod.setTabTextColors(
+                    ContextCompat.getColor(this, R.color.text_secondary), color);
+        }
+
         binding.tabDetailPeriod.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override public void onTabSelected(TabLayout.Tab tab) {
                 selectedPeriodIdx = tab.getPosition();

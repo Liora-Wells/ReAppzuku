@@ -171,6 +171,13 @@ public class StatisticsActivity extends BaseActivity {
         com.google.android.material.tabs.TabLayout tabs = binding.tabPeriodSelector;
         for (String label : chartPeriodLabels) tabs.addTab(tabs.newTab().setText(label));
         tabs.selectTab(tabs.getTabAt(selectedPeriodIdx));
+
+        int accent = sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM);
+        if (accent == ACCENT_CUSTOM) {
+            int color = sharedPreferences.getInt(KEY_ACCENT_CUSTOM_COLOR, ACCENT_CUSTOM_DEFAULT_COLOR);
+            applyCustomAccentToTabLayout(tabs, color);
+        }
+
         tabs.addOnTabSelectedListener(new com.google.android.material.tabs.TabLayout.OnTabSelectedListener() {
             @Override public void onTabSelected(com.google.android.material.tabs.TabLayout.Tab tab) {
                 selectedPeriodIdx = tab.getPosition();
@@ -1208,6 +1215,13 @@ public class StatisticsActivity extends BaseActivity {
         } catch (Exception e) {
             Toast.makeText(this, getString(R.string.settings_open_app_info_error), Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void applyCustomAccentToTabLayout(com.google.android.material.tabs.TabLayout tabs, int color) {
+        tabs.setSelectedTabIndicatorColor(color);
+        tabs.setTabTextColors(
+                ContextCompat.getColor(this, R.color.text_secondary),
+                color);
     }
 
     private void styleDialogButtons(AlertDialog dialog) {
