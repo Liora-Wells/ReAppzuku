@@ -74,6 +74,7 @@ public class MainActivity extends BaseActivity {
     private int appliedAccent;
     private boolean appliedIsAmoled;
     private int appliedCustomColor;
+    private int appliedOnColor;
 
     private final Shizuku.OnRequestPermissionResultListener shizukuPermissionListener = (requestCode, grantResult) -> {
         if (grantResult == PackageManager.PERMISSION_GRANTED) {
@@ -118,6 +119,7 @@ public class MainActivity extends BaseActivity {
         appliedAccent = accent;
         appliedIsAmoled = isAmoled;
         appliedCustomColor = sharedPreferences.getInt(KEY_ACCENT_CUSTOM_COLOR, ACCENT_CUSTOM_DEFAULT_COLOR);
+        appliedOnColor = sharedPreferences.getInt(KEY_ACCENT_ON_COLOR, ACCENT_ON_WHITE);
 
         shellManager = new ShellManager(this, handler, executor);
         appManager = new BackgroundAppManager(this, handler, executor, shellManager);
@@ -796,8 +798,10 @@ public class MainActivity extends BaseActivity {
         int newAccent = sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM);
         boolean newIsAmoled = sharedPreferences.getBoolean(KEY_AMOLED, false);
         int newCustomColor = sharedPreferences.getInt(KEY_ACCENT_CUSTOM_COLOR, ACCENT_CUSTOM_DEFAULT_COLOR);
+        int newOnColor = sharedPreferences.getInt(KEY_ACCENT_ON_COLOR, ACCENT_ON_WHITE);
         if (newAccent != appliedAccent || newIsAmoled != appliedIsAmoled
-                || (newAccent == ACCENT_CUSTOM && newCustomColor != appliedCustomColor)) {
+                || (newAccent == ACCENT_CUSTOM && newCustomColor != appliedCustomColor)
+                || (newAccent == ACCENT_CUSTOM && newOnColor != appliedOnColor)) {
             recreate();
             return;
         }
