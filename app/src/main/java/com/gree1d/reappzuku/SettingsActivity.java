@@ -569,6 +569,8 @@ public class SettingsActivity extends BaseActivity {
             allApps = filterOutProtected(allApps);
             Set<String> blacklisted = autoKillManager.getBlacklistedApps();
             FilterAppsAdapter filterAdapter = new FilterAppsAdapter(this, allApps, blacklisted);
+            if (sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM) == ACCENT_CUSTOM)
+                filterAdapter.setAccentColor(sharedPreferences.getInt(KEY_ACCENT_CUSTOM_COLOR, ACCENT_CUSTOM_DEFAULT_COLOR));
             listView.setAdapter(filterAdapter);
             progressBar.setVisibility(View.GONE);
             listView.setVisibility(View.VISIBLE);
@@ -620,6 +622,8 @@ public class SettingsActivity extends BaseActivity {
             allApps = filterOutProtected(allApps);
             Set<String> whitelistedApps = appManager.getWhitelistedApps();
             FilterAppsAdapter filterAdapter = new FilterAppsAdapter(this, allApps, whitelistedApps);
+            if (sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM) == ACCENT_CUSTOM)
+                filterAdapter.setAccentColor(sharedPreferences.getInt(KEY_ACCENT_CUSTOM_COLOR, ACCENT_CUSTOM_DEFAULT_COLOR));
             listView.setAdapter(filterAdapter);
             listView.setOnItemClickListener(null);
 
@@ -672,6 +676,8 @@ public class SettingsActivity extends BaseActivity {
         appManager.loadAllApps(allApps -> {
             Set<String> hiddenApps = appManager.getHiddenApps();
             FilterAppsAdapter filterAdapter = new FilterAppsAdapter(this, allApps, hiddenApps);
+            if (sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM) == ACCENT_CUSTOM)
+                filterAdapter.setAccentColor(sharedPreferences.getInt(KEY_ACCENT_CUSTOM_COLOR, ACCENT_CUSTOM_DEFAULT_COLOR));
             listView.setAdapter(filterAdapter);
             listView.setOnItemClickListener(null);
 
@@ -743,6 +749,8 @@ public class SettingsActivity extends BaseActivity {
                     hardRestrictedApps,
                     manualRestrictedApps,
                     initialMasks);
+            if (sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM) == ACCENT_CUSTOM)
+                filterAdapter.setAccentColor(sharedPreferences.getInt(KEY_ACCENT_CUSTOM_COLOR, ACCENT_CUSTOM_DEFAULT_COLOR));
             listView.setAdapter(filterAdapter);
             listView.setOnItemClickListener(null);
 
@@ -908,6 +916,8 @@ public class SettingsActivity extends BaseActivity {
             allApps = filterOutProtected(allApps);
             Set<String> sleepModeApps = sleepModeManager.getSleepModeApps();
             FilterAppsAdapter filterAdapter = new FilterAppsAdapter(this, allApps, sleepModeApps);
+            if (sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM) == ACCENT_CUSTOM)
+                filterAdapter.setAccentColor(sharedPreferences.getInt(KEY_ACCENT_CUSTOM_COLOR, ACCENT_CUSTOM_DEFAULT_COLOR));
             listView.setAdapter(filterAdapter);
             listView.setOnItemClickListener(null);
 

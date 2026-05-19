@@ -423,6 +423,12 @@ public class FilterAppsAdapter extends BaseAdapter implements Filterable {
                     notifySelectionChanged();
                 })
                 .show();
+
+        if (hasAccent()) {
+            android.content.res.ColorStateList tint =
+                    android.content.res.ColorStateList.valueOf(accentColor);
+            for (CheckBox cb : boxes) cb.setButtonTintList(tint);
+        }
     }
 
     private View makeDivider(int paddingH) {
