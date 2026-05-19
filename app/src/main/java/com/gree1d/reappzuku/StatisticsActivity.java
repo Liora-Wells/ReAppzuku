@@ -1223,7 +1223,10 @@ public class StatisticsActivity extends BaseActivity {
     }
 
     private void styleDialogButtons(AlertDialog dialog) {
-        int color = ContextCompat.getColor(this, R.color.dialog_button_text);
+        int accent = sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM);
+        int color = (accent == ACCENT_CUSTOM)
+                ? sharedPreferences.getInt(KEY_ACCENT_CUSTOM_COLOR, ACCENT_CUSTOM_DEFAULT_COLOR)
+                : ContextCompat.getColor(this, R.color.dialog_button_text);
         if (dialog.getButton(AlertDialog.BUTTON_NEGATIVE) != null)
             dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(color);
         if (dialog.getButton(AlertDialog.BUTTON_NEUTRAL) != null)

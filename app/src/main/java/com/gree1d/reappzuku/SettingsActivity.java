@@ -142,20 +142,9 @@ public class SettingsActivity extends BaseActivity {
             R.id.section_title_advanced,
             R.id.section_title_about
         };
-        int[] iconIds = {
-            R.id.section_icon_information,
-            R.id.section_icon_appearance,
-            R.id.section_icon_stability,
-            R.id.section_icon_autokill,
-            R.id.section_icon_advanced
-        };
         for (int id : titleIds) {
             TextView tv = findViewById(id);
             if (tv != null) tv.setTextColor(color);
-        }
-        for (int id : iconIds) {
-            android.widget.ImageView iv = findViewById(id);
-            if (iv != null) iv.setColorFilter(color);
         }
     }
 
