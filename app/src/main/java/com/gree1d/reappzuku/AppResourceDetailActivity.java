@@ -176,9 +176,9 @@ public class AppResourceDetailActivity extends BaseActivity {
             binding.tvCpuAvg.setText(String.format(Locale.US, "%.1f%%", s.avgCpuPct));
             binding.tvCpuMax.setText(String.format(Locale.US, "%.1f%%", s.maxCpuPct));
 
-            binding.tvRamMin.setText(String.format(Locale.US, "%.0f МБ", s.minRamMb));
-            binding.tvRamAvg.setText(String.format(Locale.US, "%.0f МБ", s.avgRamMb));
-            binding.tvRamMax.setText(String.format(Locale.US, "%.0f МБ", s.maxRamMb));
+            binding.tvRamMin.setText(getString(R.string.unit_mbb, s.minRamMb));
+            binding.tvRamAvg.setText(getString(R.string.unit_mbb, s.avgRamMb));
+            binding.tvRamMax.setText(getString(R.string.unit_mbb, s.maxRamMb));
 
             buildActivityChart(result.slices);
         });
