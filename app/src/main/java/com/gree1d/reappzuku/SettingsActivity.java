@@ -492,6 +492,7 @@ public class SettingsActivity extends BaseActivity {
         ((TextView) titleView.findViewById(R.id.dialog_title)).setText(R.string.settings_auto_kill_type_title);
 
         View bodyView = getLayoutInflater().inflate(R.layout.dialog_single_choice, null);
+        bodyView.findViewById(R.id.single_choice_title).setVisibility(View.GONE);
         android.widget.RadioGroup group = bodyView.findViewById(R.id.single_choice_group);
         int accent = sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM);
         android.content.res.ColorStateList tint = (accent == ACCENT_CUSTOM)
@@ -1679,10 +1680,13 @@ public class SettingsActivity extends BaseActivity {
                 .setNegativeButton(getString(R.string.dialog_cancel), null)
                 .create();
 
+        final boolean[] userInteracted = {false};
         group.setOnCheckedChangeListener((g, checkedId) -> {
+            if (!userInteracted[0] || checkedId == -1) return;
             onPick.accept(checkedId - 1000);
             dialog.dismiss();
         });
+        view.post(() -> userInteracted[0] = true);
 
         dialog.show();
     }
