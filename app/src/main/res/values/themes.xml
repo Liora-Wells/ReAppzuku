@@ -414,7 +414,11 @@
     <style name="ThemeOverlay.DarkToolbarIcons" parent="ThemeOverlay.AppCompat.Light">
         <item name="colorControlNormal">#FF000000</item>
     </style>
-    <style name="AppTheme.AccentCustom" parent="AppTheme.AccentIndigo">
+    <style name="AppTheme.AccentCustom" parent="AppTheme">
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorSecondary">@color/colorAccent</item>
+        <item name="android:colorControlActivated">@color/colorPrimary</item>
+        <item name="colorControlActivated">@color/colorPrimary</item>
         <item name="buttonBarButtonStyle">@style/Widget.Custom.DialogButton</item>
         <item name="buttonBarPositiveButtonStyle">@style/Widget.Custom.DialogButton</item>
         <item name="buttonBarNegativeButtonStyle">@style/Widget.Custom.DialogButton</item>
@@ -422,6 +426,10 @@
     </style>
 
     <style name="AppTheme.AccentCustom.Amoled" parent="AppTheme.Amoled">
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorSecondary">@color/colorAccent</item>
+        <item name="android:colorControlActivated">@color/colorPrimary</item>
+        <item name="colorControlActivated">@color/colorPrimary</item>
         <item name="buttonBarButtonStyle">@style/Widget.Custom.DialogButton</item>
         <item name="buttonBarPositiveButtonStyle">@style/Widget.Custom.DialogButton</item>
         <item name="buttonBarNegativeButtonStyle">@style/Widget.Custom.DialogButton</item>
