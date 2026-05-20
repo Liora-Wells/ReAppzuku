@@ -36,7 +36,7 @@
         <item name="checkboxStyle">@style/Widget.App.CheckBox</item>
     </style>
 
-    <!-- dark accents (white text needed)-->
+    
     <style name="AppTheme.AccentIndigo" parent="AppTheme">
         <item name="colorPrimary">@color/accent_indigo_primary</item>
         <item name="colorSecondary">@color/accent_indigo_secondary</item>
@@ -243,7 +243,7 @@
         <item name="android:backgroundDimEnabled">false</item>
     </style>
 
-    <!-- light accents (black text needed) -->
+    
     <style name="AppTheme.AccentApricot" parent="AppTheme">
         <item name="colorPrimary">@color/accent_apricot_primary</item>
         <item name="colorSecondary">@color/accent_apricot_secondary</item>
@@ -415,9 +415,21 @@
         <item name="colorControlNormal">#FF000000</item>
     </style>
     <style name="AppTheme.AccentCustom" parent="AppTheme.AccentIndigo">
+        <item name="buttonBarButtonStyle">@style/Widget.Custom.DialogButton</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Widget.Custom.DialogButton</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Widget.Custom.DialogButton</item>
+        <item name="buttonBarNeutralButtonStyle">@style/Widget.Custom.DialogButton</item>
     </style>
 
     <style name="AppTheme.AccentCustom.Amoled" parent="AppTheme.Amoled">
+        <item name="buttonBarButtonStyle">@style/Widget.Custom.DialogButton</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Widget.Custom.DialogButton</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Widget.Custom.DialogButton</item>
+        <item name="buttonBarNeutralButtonStyle">@style/Widget.Custom.DialogButton</item>
+    </style>
+
+    <style name="Widget.Custom.DialogButton" parent="Widget.Material3.Button.TextButton.Dialog">
+        <item name="android:textColor">?attr/colorOnSurface</item>
     </style>
 
     <style name="AppTheme_AccentCustomOverride" parent="">
