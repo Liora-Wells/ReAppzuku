@@ -498,9 +498,9 @@ public class SettingsActivity extends BaseActivity {
                 ? android.content.res.ColorStateList.valueOf(getDialogAccentColor()) : null;
         for (int i = 0; i < types.length; i++) {
             android.widget.RadioButton rb = new android.widget.RadioButton(this);
-            rb.setText(types[i]); rb.setId(i); rb.setTextSize(16f);
-            rb.setMinHeight((int) (getResources().getDisplayMetrics().density * 48));
-            rb.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            rb.setText(types[i]); rb.setId(i);
+            int dp8 = (int) (getResources().getDisplayMetrics().density * 8);
+            rb.setPadding(dp8, dp8, dp8, dp8);
             android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -1649,20 +1649,22 @@ public class SettingsActivity extends BaseActivity {
     private void showSingleChoiceDialog(String title, String[] options, int selected,
                                         java.util.function.IntConsumer onPick) {
         android.view.View view = getLayoutInflater().inflate(R.layout.dialog_single_choice, null);
+        android.widget.TextView titleView = view.findViewById(R.id.single_choice_title);
         android.widget.RadioGroup group = view.findViewById(R.id.single_choice_group);
+
+        titleView.setText(title);
 
         int accent = sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM);
         android.content.res.ColorStateList tint = (accent == ACCENT_CUSTOM)
                 ? android.content.res.ColorStateList.valueOf(getDialogAccentColor())
                 : null;
 
+        int dp8 = (int) (getResources().getDisplayMetrics().density * 8);
         for (int i = 0; i < options.length; i++) {
             android.widget.RadioButton rb = new android.widget.RadioButton(this);
             rb.setText(options[i]);
             rb.setId(i);
-            rb.setTextSize(16f);
-            rb.setMinHeight((int) (getResources().getDisplayMetrics().density * 48));
-            rb.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            rb.setPadding(dp8, dp8, dp8, dp8);
             android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -1673,12 +1675,9 @@ public class SettingsActivity extends BaseActivity {
         group.check(selected);
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(title)
                 .setView(view)
                 .setNegativeButton(getString(R.string.dialog_cancel), null)
                 .create();
-        dialog.getWindow().setBackgroundDrawable(
-                new ColorDrawable(ContextCompat.getColor(this, R.color.background_primary)));
 
         group.setOnCheckedChangeListener((g, checkedId) -> {
             onPick.accept(checkedId);
