@@ -978,7 +978,7 @@ public class AppTriggerAnalyzersExt {
                     && logcat.contains(packageName)) {
                 list.add(new TriggerInfo(TriggerInfo.Group.OTHER,
                         context.getString(R.string.triggers_cat_boot),
-                        context.getString(R.string.triggers_fgs_boot_exception_detail),                        ,
+                        context.getString(R.string.triggers_fgs_boot_exception_detail),
                         context.getString(R.string.triggers_fgs_boot_exception_explanation),                        
                         TriggerInfo.Severity.HIGH));
             }
