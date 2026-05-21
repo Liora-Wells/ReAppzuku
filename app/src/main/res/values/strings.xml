@@ -909,6 +909,7 @@
     <string name="triggers_status_active">Active</string>
     <string name="triggers_status_background">Background</string>
     <string name="triggers_status_cached">Cached</string>
+    <string name="triggers_aggression_label_prefix">Aggression score:</string>
     
     <!-- ══════════════════════════════════════════════
          UPDATE DIALOG
