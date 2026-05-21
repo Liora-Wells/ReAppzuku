@@ -118,6 +118,19 @@ public class AppTriggerAnalyzersExt {
         list.add(new TriggerInfo(TriggerInfo.Group.CAN_WAKE,
                 context.getString(R.string.triggers_cat_alarms),
                 detail.toString(), expl.toString(), sev));
+
+        try {
+            String cancelDetail = parseAlarmCancellations(output, packageName);
+            if (cancelDetail != null) {
+                list.add(new TriggerInfo(TriggerInfo.Group.OTHER,
+                        context.getString(R.string.triggers_cat_alarms) + " [throttled]",
+                        cancelDetail,
+                        "Система отменяет аларм из-за app_standby или battery_saver. " +
+                        "Приложение пытается запустить себя по таймеру, но HyperOS блокирует.",
+                        TriggerInfo.Severity.MEDIUM));
+            }
+        } catch (Exception e) { Log.w(TAG, "alarm cancellation parse failed: " + e.getMessage()); }
+
         return list;
     }
 
@@ -145,7 +158,84 @@ public class AppTriggerAnalyzersExt {
         if (e.intervalMs > 0)              sb.append(" · every ").append(analyzer.formatInterval(e.intervalMs));
         if (e.exact)                        sb.append(" · exact");
         if (e.whileIdle)                    sb.append(" · while-idle");
+        if (e.pendingBroadcast)             sb.append(" · [queued broadcast]");
+        if (e.quotaExceeded)               sb.append(" · [QUOTA_EXCEEDED]");
         return sb.toString();
+    }
+
+    private static final Pattern QUOTA_PAT = Pattern.compile(
+            "RESTRICTED_BUCKET|QUOTA_EXCEEDED|INACTIVE|STANDBY_THROTTLE");
+
+    private String parseAlarmCancellations(String output, String packageName) {
+        boolean inUidSection = false;
+        int     cancelCount  = 0;
+        String  lastReason   = null;
+        String  lastBlocker  = null;
+
+        String uidTag = null;
+        if (analyzer.cachedUid != null) {
+            try {
+                int appId = Integer.parseInt(analyzer.cachedUid) - 10000;
+                if (appId >= 0) uidTag = "u0a" + appId + ":";
+            } catch (NumberFormatException ignored) {}
+        }
+
+        Pattern reasonPat = Pattern.compile("Reason=([\\w_]+)");
+        Pattern policyPat = Pattern.compile(
+                "app_standby=(-[\\d.smh]+)|battery_saver=(-[\\d.smh]+)|device_idle=(-[\\d.smh]+)");
+        Pattern tagPat    = Pattern.compile(
+                "tag=\\*alarm\\*:(" + Pattern.quote(packageName) + "[/\\w.]+)");
+
+        boolean inCancelBlock = false;
+        boolean blockHasPkg   = false;
+
+        for (String line : output.split("\n")) {
+            try {
+                String t = line.trim();
+
+                if (uidTag != null && t.startsWith(uidTag)) {
+                    inUidSection = true; continue;
+                }
+                if (inUidSection && t.matches("u0a\\d+:.*")) {
+                    inUidSection = false;
+                }
+                if (!inUidSection && uidTag == null && t.contains(packageName)) {
+                    inUidSection = true;
+                }
+                if (!inUidSection) continue;
+
+                if (t.startsWith("#") && t.contains("Reason=")) {
+                    if (inCancelBlock && blockHasPkg) cancelCount++;
+                    inCancelBlock = true;
+                    blockHasPkg   = false;
+                    Matcher m = reasonPat.matcher(t);
+                    if (m.find()) lastReason = m.group(1);
+                }
+
+                if (inCancelBlock) {
+                    if (tagPat.matcher(t).find()) blockHasPkg = true;
+                    Matcher mPol = policyPat.matcher(t);
+                    if (mPol.find()) {
+                        if (mPol.group(1) != null)      lastBlocker = "app_standby";
+                        else if (mPol.group(2) != null) lastBlocker = "battery_saver";
+                        else if (mPol.group(3) != null) lastBlocker = "device_idle";
+                    }
+                    Matcher mQ = QUOTA_PAT.matcher(t);
+                    if (mQ.find()) lastReason = mQ.group(0);
+                    Matcher mFree = Pattern.compile("quotaTimeUntilFree=(\\d+)").matcher(t);
+                    if (mFree.find()) {
+                        long freeMs = Long.parseLong(mFree.group(1));
+                        if (lastBlocker == null) lastBlocker = "quota(free in " + analyzer.formatDuration(freeMs) + ")";
+                    }
+                }
+            } catch (Exception e) { Log.w(TAG, "parseAlarmCancellations line failed: " + e.getMessage()); }
+        }
+        if (inCancelBlock && blockHasPkg) cancelCount++;
+
+        if (cancelCount == 0) return null;
+
+        String blocker = lastBlocker != null ? lastBlocker : (lastReason != null ? lastReason : "system");
+        return cancelCount + "× alarm cancelled by " + blocker;
     }
 
     List<TriggerInfo> analyzeJobs(String packageName) {
@@ -155,6 +245,8 @@ public class AppTriggerAnalyzersExt {
             String output = shellManager.runShellCommandAndGetFullOutput("dumpsys jobscheduler");
             if (output != null && !output.trim().isEmpty()) {
                 int pending=0, running=0;
+                int wmPending=0, wmRunning=0;
+                int uijRunning=0, uijPending=0;
                 boolean inPending=false, inRunning=false, inPast=false, inJobBlock=false;
                 List<String> jobDetails  = new ArrayList<>();
                 List<String> stopReasons = new ArrayList<>();
@@ -176,8 +268,13 @@ public class AppTriggerAnalyzersExt {
                     }
 
                     if ((inPending || inRunning) && t.contains(packageName)) {
-                        if (inPending) pending++;
-                        if (inRunning) running++;
+                        boolean isWmLine = t.contains("androidx.work") || t.contains("WorkManager")
+                                || t.contains("systemjobscheduler");
+                        boolean isUijLine = t.contains("isUserInitiated=true")
+                                || t.contains("userInitiated=true")
+                                || t.contains("RUN_USER_INITIATED_JOBS");
+                        if (inPending) { pending++; if (isWmLine) wmPending++; if (isUijLine) uijPending++; }
+                        if (inRunning) { running++; if (isWmLine) wmRunning++; if (isUijLine) uijRunning++; }
                         if (t.startsWith("JOB #") || t.startsWith("JobInfo{")
                                 || t.startsWith("Job{"))
                             { inJobBlock=true; jobBlock.setLength(0); }
@@ -203,6 +300,16 @@ public class AppTriggerAnalyzersExt {
                     if (running > 0) detail.append(context.getString(R.string.triggers_jobs_detail_running, running));
                     if (pending > 0) { if (detail.length()>0) detail.append(", ");
                                        detail.append(context.getString(R.string.triggers_jobs_detail_pending, pending)); }
+                    if (wmPending > 0 || wmRunning > 0) {
+                        detail.append(" · WM:");
+                        if (wmRunning > 0) detail.append(wmRunning).append("r");
+                        if (wmPending > 0) detail.append(wmPending).append("p");
+                    }
+                    if (uijRunning > 0 || uijPending > 0) {
+                        detail.append(" · UIJ:");
+                        if (uijRunning > 0) detail.append(uijRunning).append("r");
+                        if (uijPending > 0) detail.append(uijPending).append("p");
+                    }
                     if (!jobDetails.isEmpty())  detail.append(" · ").append(String.join("; ", jobDetails));
                     if (!stopReasons.isEmpty()) detail.append(context.getString(
                             R.string.triggers_jobs_stop_reasons, String.join(", ", stopReasons)));
@@ -220,7 +327,34 @@ public class AppTriggerAnalyzersExt {
             }
         } catch (Exception e) { Log.w(TAG, "analyzeJobs/jobscheduler failed: " + e.getMessage()); }
 
+        if (list.isEmpty()) {
+            List<String> cmdDetails = getJobsFallbackCmdJobscheduler(packageName);
+            if (!cmdDetails.isEmpty()) {
+                list.add(new TriggerInfo(TriggerInfo.Group.CAN_WAKE,
+                        context.getString(R.string.triggers_cat_jobs),
+                        String.join(", ", cmdDetails),
+                        context.getString(R.string.triggers_jobs_running_explanation, 0),
+                        TriggerInfo.Severity.MEDIUM));
+            }
+        }
+
         return list;
+    }
+
+    private List<String> getJobsFallbackCmdJobscheduler(String packageName) {
+        List<String> details = new ArrayList<>();
+        try {
+            String state = shellManager.runShellCommandAndGetFullOutput(
+                    "cmd jobscheduler get-job-state " + packageName);
+            if (state != null && !state.trim().isEmpty() && !state.contains("Unknown")) {
+                if (state.contains("Running")) details.add("running(cmd)");
+                if (state.contains("Pending")) details.add("pending(cmd)");
+                if (state.contains("Stopped")) details.add("stopped(cmd)");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "jobs cmd fallback failed: " + e.getMessage());
+        }
+        return details;
     }
 
     String parseJobBlock(String block) {
@@ -491,6 +625,13 @@ public class AppTriggerAnalyzersExt {
     }
 
 
+    private static final Pattern BAL_FGS_PAT = Pattern.compile(
+            "backgroundStartPrivileges.*?allowsBackgroundForegroundServiceStarts=(true|false)",
+            Pattern.DOTALL);
+    private static final Pattern BAL_ACTIVITY_PAT = Pattern.compile(
+            "backgroundStartPrivileges.*?allowsBackgroundActivityStarts=(true|false)",
+            Pattern.DOTALL);
+
     List<TriggerInfo> analyzeChainLaunch(String packageName) {
         List<TriggerInfo> list = new ArrayList<>();
 
@@ -516,6 +657,25 @@ public class AppTriggerAnalyzersExt {
                                     TriggerInfo.Severity.HIGH));
                         }
                         break;
+                    }
+                    if (analyzer.apiLevel >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+                            && line.contains("BackgroundStartPrivileges")
+                            && line.contains(packageName)) {
+                        Matcher mFgs = BAL_FGS_PAT.matcher(line);
+                        Matcher mAct = BAL_ACTIVITY_PAT.matcher(line);
+                        boolean fgsAllowed = mFgs.find() && "true".equals(mFgs.group(1));
+                        boolean actAllowed = mAct.find() && "true".equals(mAct.group(1));
+                        if (fgsAllowed || actAllowed) {
+                            String detail = fgsAllowed && actAllowed ? "FGS + Activity"
+                                    : fgsAllowed ? "FGS only" : "Activity only";
+                            list.add(new TriggerInfo(TriggerInfo.Group.OTHER,
+                                    context.getString(R.string.triggers_cat_chain_launch),
+                                    "BackgroundStartPrivilege: " + detail,
+                                    "Android 14+: приложение получило токен на запуск из фона. " +
+                                    "Обычно выдаётся системой при FCM high-priority, точном аларме, " +
+                                    "или PendingIntent от видимого приложения.",
+                                    TriggerInfo.Severity.HIGH));
+                        }
                     }
                 }
             }
@@ -555,6 +715,38 @@ public class AppTriggerAnalyzersExt {
                 }
             }
         } catch (Exception e) { Log.w(TAG, "chain/broadcasts failed: " + e.getMessage()); }
+
+        if (list.isEmpty() && analyzer.apiLevel >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            list.addAll(analyzeChainLaunchLogcatFallback(packageName));
+        }
+
+        return list;
+    }
+
+    private List<TriggerInfo> analyzeChainLaunchLogcatFallback(String packageName) {
+        List<TriggerInfo> list = new ArrayList<>();
+        try {
+            String logcat = shellManager.runShellCommandAndGetFullOutput(
+                    "logcat -d -t 200 -s ActivityTaskManager:W | grep " + packageName);
+            if (logcat == null || logcat.trim().isEmpty()) return list;
+
+            Pattern callerPat = Pattern.compile("callingPackage:\\s*([\\w.]+)");
+
+            for (String line : logcat.split("\n")) {
+                if (!line.contains("blocked") || !line.contains(packageName)) continue;
+                Matcher mC = callerPat.matcher(line);
+                String caller = mC.find() ? mC.group(1) : "unknown";
+                list.add(new TriggerInfo(TriggerInfo.Group.OTHER,
+                        context.getString(R.string.triggers_cat_chain_launch),
+                        "BAL blocked by system · caller=" + caller,
+                        "Android 14+: система заблокировала попытку запуска из фона. " +
+                        "Приложение пытается стартовать Activity или FGS без разрешения.",
+                        TriggerInfo.Severity.MEDIUM));
+                if (list.size() >= 2) break;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "chain/logcat fallback failed: " + e.getMessage());
+        }
         return list;
     }
 
@@ -652,28 +844,40 @@ public class AppTriggerAnalyzersExt {
         List<TriggerInfo> list = new ArrayList<>();
         boolean hasBoot = false, hasLocked = false;
 
-
         try {
             String o1 = shellManager.runShellCommandAndGetFullOutput(
-                    "cmd package query-receivers --action android.intent.action.BOOT_COMPLETED");
-            if (o1 != null && o1.contains(packageName)) hasBoot = true;
-        } catch (Exception e) { Log.w(TAG, "boot query failed: " + e.getMessage()); }
+                    "cmd package query-receivers -a android.intent.action.BOOT_COMPLETED");
+            if (o1 != null && !o1.contains("Unknown option") && o1.contains(packageName))
+                hasBoot = true;
+        } catch (Exception e) { Log.w(TAG, "boot query-receivers failed: " + e.getMessage()); }
         try {
             String o2 = shellManager.runShellCommandAndGetFullOutput(
-                    "cmd package query-receivers --action android.intent.action.LOCKED_BOOT_COMPLETED");
-            if (o2 != null && o2.contains(packageName)) hasLocked = true;
-        } catch (Exception e) { Log.w(TAG, "locked-boot query failed: " + e.getMessage()); }
-
+                    "cmd package query-receivers -a android.intent.action.LOCKED_BOOT_COMPLETED");
+            if (o2 != null && !o2.contains("Unknown option") && o2.contains(packageName))
+                hasLocked = true;
+        } catch (Exception e) { Log.w(TAG, "locked-boot query-receivers failed: " + e.getMessage()); }
 
         if (!hasBoot && !hasLocked) {
             try {
                 String pkgOut = shellManager.runShellCommandAndGetFullOutput(
                         "dumpsys package " + packageName);
                 if (pkgOut != null) {
+                    boolean inReceivers = false;
                     for (String line : pkgOut.split("\n")) {
                         String t = line.trim();
-                        if (t.contains("BOOT_COMPLETED"))        hasBoot   = true;
-                        if (t.contains("LOCKED_BOOT_COMPLETED")) hasLocked = true;
+                        if (t.startsWith("Receiver #") || t.equals("receivers:")) inReceivers = true;
+                        if (inReceivers && (t.startsWith("Activity #")
+                                || t.startsWith("Service #")
+                                || t.startsWith("Provider #"))) break;
+                        if (!inReceivers && (t.contains("BOOT_COMPLETED")
+                                || t.contains("LOCKED_BOOT"))) {
+                            if (t.contains("BOOT_COMPLETED"))  hasBoot   = true;
+                            if (t.contains("LOCKED_BOOT"))     hasLocked = true;
+                            continue;
+                        }
+                        if (!inReceivers) continue;
+                        if (t.contains("BOOT_COMPLETED"))  hasBoot   = true;
+                        if (t.contains("LOCKED_BOOT"))     hasLocked = true;
                         if (hasBoot && hasLocked) break;
                     }
                 }
@@ -692,6 +896,45 @@ public class AppTriggerAnalyzersExt {
         list.add(new TriggerInfo(TriggerInfo.Group.OTHER,
                 context.getString(R.string.triggers_cat_boot), detail, expl,
                 TriggerInfo.Severity.HIGH));
+
+        if (analyzer.apiLevel >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            list.addAll(analyzeBootFgsRestriction(packageName));
+        }
+
+        return list;
+    }
+
+    private List<TriggerInfo> analyzeBootFgsRestriction(String packageName) {
+        List<TriggerInfo> list = new ArrayList<>();
+        try {
+            String bh = getBroadcastHistory();
+            if (bh != null && bh.contains(packageName)
+                    && bh.contains("FGS_BOOT_COMPLETED_RESTRICTIONS")) {
+                list.add(new TriggerInfo(TriggerInfo.Group.OTHER,
+                        context.getString(R.string.triggers_cat_boot),
+                        "FGS заблокирован при boot · FGS_BOOT_COMPLETED_RESTRICTIONS",
+                        "Android 14+: BOOT_COMPLETED receiver не может запустить FGS типа " +
+                        "MICROPHONE (API 34) или PHONE_CALL (API 35). " +
+                        "Приложение пытается обойти это ограничение.",
+                        TriggerInfo.Severity.HIGH));
+            }
+
+            String logcat = shellManager.runShellCommandAndGetFullOutput(
+                    "logcat -d -t 100 -s ActivityManager:E | grep " + packageName);
+            if (logcat != null
+                    && logcat.contains("ForegroundServiceStartNotAllowedException")
+                    && logcat.contains(packageName)) {
+                list.add(new TriggerInfo(TriggerInfo.Group.OTHER,
+                        context.getString(R.string.triggers_cat_boot),
+                        "ForegroundServiceStartNotAllowedException при boot",
+                        "Android 15: попытка запустить FGS из BOOT_COMPLETED завершилась " +
+                        "исключением. Тип сервиса (dataSync/mediaProcessing/phoneCall) " +
+                        "запрещён к запуску при загрузке.",
+                        TriggerInfo.Severity.HIGH));
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "bootFgsRestriction fallback failed: " + e.getMessage());
+        }
         return list;
     }
 
@@ -875,8 +1118,10 @@ public class AppTriggerAnalyzersExt {
     List<TriggerInfo> analyzeDozeExemption(String packageName) {
         List<TriggerInfo> list = new ArrayList<>();
         String output = shellManager.runShellCommandAndGetFullOutput(
-                "dumpsys deviceidle | grep -E 'whitelist|except'");
-        if (output == null || output.trim().isEmpty()) return list;
+                "dumpsys deviceidle | grep -E 'whitelist|except|power-save|restricted|exemption'");
+        if (output == null || output.trim().isEmpty()) {
+            return analyzeDozeExemptionFallback(packageName);
+        }
 
         for (String line : output.split("\n")) {
             if (!line.contains(packageName)) continue;
@@ -890,6 +1135,43 @@ public class AppTriggerAnalyzersExt {
                     TriggerInfo.Severity.HIGH));
             break;
         }
+
+        if (list.isEmpty()) list.addAll(analyzeDozeExemptionFallback(packageName));
+        return list;
+    }
+
+    private List<TriggerInfo> analyzeDozeExemptionFallback(String packageName) {
+        List<TriggerInfo> list = new ArrayList<>();
+        try {
+            String ops = shellManager.runShellCommandAndGetFullOutput(
+                    "cmd appops get " + packageName + " RUN_ANY_IN_BACKGROUND");
+            if (ops != null && ops.contains("allow")) {
+                list.add(new TriggerInfo(TriggerInfo.Group.OTHER,
+                        context.getString(R.string.triggers_cat_doze),
+                        "Battery optimization disabled · RUN_ANY_IN_BACKGROUND=allow",
+                        "Приложение исключено из оптимизации батареи пользователем или системой. " +
+                        "Может работать в фоне без ограничений Doze/App Standby.",
+                        TriggerInfo.Severity.HIGH));
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "doze exemption appops fallback failed: " + e.getMessage());
+        }
+
+        try {
+            String battery = shellManager.runShellCommandAndGetFullOutput(
+                    "dumpsys battery | grep -i " + packageName);
+            if (battery != null && !battery.trim().isEmpty()
+                    && battery.toLowerCase().contains("exempt")) {
+                list.add(new TriggerInfo(TriggerInfo.Group.OTHER,
+                        context.getString(R.string.triggers_cat_doze),
+                        "Battery exempt (dumpsys battery)",
+                        "Приложение в списке исключений battery manager.",
+                        TriggerInfo.Severity.HIGH));
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "doze exemption battery fallback failed: " + e.getMessage());
+        }
+
         return list;
     }
 
@@ -898,6 +1180,9 @@ public class AppTriggerAnalyzersExt {
         List<TriggerInfo> list = new ArrayList<>();
         String output = shellManager.runShellCommandAndGetFullOutput(
                 "am get-standby-bucket " + packageName);
+        if (output == null || output.trim().isEmpty()) {
+            output = getStandbyBucketFallback(packageName);
+        }
         if (output == null || output.trim().isEmpty()) return list;
 
         int bv = -1;
@@ -968,11 +1253,47 @@ public class AppTriggerAnalyzersExt {
         if      (bv <= 10) { sev=TriggerInfo.Severity.HIGH;   expl=context.getString(R.string.triggers_bucket_active_explanation); }
         else if (bv <= 20) { sev=TriggerInfo.Severity.MEDIUM; expl=context.getString(R.string.triggers_bucket_working_set_explanation); }
         else if (bv <= 30) { sev=TriggerInfo.Severity.LOW;    expl=context.getString(R.string.triggers_bucket_frequent_explanation); }
-        else               { sev=TriggerInfo.Severity.INFO;   expl=context.getString(R.string.triggers_bucket_rare_explanation); }
+        else if (bv <= 40) { sev=TriggerInfo.Severity.INFO;   expl=context.getString(R.string.triggers_bucket_rare_explanation); }
+        else if (bv <= 45) {
+            sev  = TriggerInfo.Severity.HIGH;
+            expl = "RESTRICTED bucket (Android 12+): Jobs и Alarms полностью заблокированы. " +
+                   "На Android 14 даже ALLOW_WHILE_IDLE аларм игнорируется. " +
+                   "Приложение попало под ограничения за чрезмерное потребление в фоне.";
+        }
+        else {
+            sev  = TriggerInfo.Severity.HIGH;
+            expl = "NEVER bucket: фоновая работа полностью отключена системой.";
+        }
 
         list.add(new TriggerInfo(TriggerInfo.Group.OTHER,
                 context.getString(R.string.triggers_cat_bucket), detail, expl, sev));
         return list;
+    }
+
+    private String getStandbyBucketFallback(String packageName) {
+        try {
+            String us = shellManager.runShellCommandAndGetFullOutput(
+                    "dumpsys usagestats | grep -A3 \"" + packageName + "\"");
+            if (us != null) {
+                Matcher m = Pattern.compile("standbyBucket=(\\d+)").matcher(us);
+                if (m.find()) return m.group(1);
+                Matcher m2 = Pattern.compile("bucket=(\\d+)").matcher(us);
+                if (m2.find()) return m2.group(1);
+            }
+        } catch (Exception e) { Log.w(TAG, "standby fallback/usagestats: " + e.getMessage()); }
+
+        try {
+            String ops = shellManager.runShellCommandAndGetFullOutput(
+                    "cmd appops get " + packageName + " RUN_ANY_IN_BACKGROUND");
+            if (ops != null) {
+                if (ops.contains("ignore") || ops.contains("deny"))
+                    return "45";
+                if (ops.contains("allow"))
+                    return "5";
+            }
+        } catch (Exception e) { Log.w(TAG, "standby fallback/appops: " + e.getMessage()); }
+
+        return null;
     }
 
     List<TriggerInfo> analyzeBatteryStats(String packageName) {
@@ -1432,9 +1753,12 @@ public class AppTriggerAnalyzersExt {
 
             String out = shellManager.runShellCommandAndGetFullOutput(
                     "appops get " + packageName);
-            if (out == null || out.trim().isEmpty()) {
+            if (out == null || out.trim().isEmpty() || out.contains("Failed transaction")) {
                 out = shellManager.runShellCommandAndGetFullOutput(
                         "cmd appops get " + packageName);
+            }
+            if (out == null || out.trim().isEmpty() || out.contains("Failed transaction")) {
+                out = parseDumpsysAppOpsForPackage(packageName);
             }
             if (out == null || out.trim().isEmpty()) return list;
 
@@ -1460,7 +1784,9 @@ public class AppTriggerAnalyzersExt {
                     OpDescriptor desc = appOpDescriptor(op);
                     if (desc == null) continue;
 
-                    if ("ignore".equals(mode) || "deny".equals(mode)) continue;
+                    boolean isFgsOp = op.equals("START_FOREGROUND");
+                    if (!isFgsOp && ("ignore".equals(mode) || "deny".equals(mode))) continue;
+                    if (isFgsOp && "allow".equals(mode)) continue;
 
                     String timeStr = null;
                     Matcher mTime = timePat.matcher(t);
@@ -1500,6 +1826,48 @@ public class AppTriggerAnalyzersExt {
         return list;
     }
 
+    private String parseDumpsysAppOpsForPackage(String packageName) {
+        try {
+            String full = shellManager.runShellCommandAndGetFullOutput("dumpsys appops");
+            if (full == null) return null;
+
+            StringBuilder sb = new StringBuilder();
+            boolean inPkg = false;
+            int braceDepth = 0;
+
+            for (String line : full.split("\n")) {
+                if (!inPkg) {
+                    if (line.trim().startsWith("Package " + packageName)) {
+                        inPkg = true;
+                        braceDepth = 0;
+                    }
+                    continue;
+                }
+
+                for (char c : line.toCharArray()) {
+                    if (c == '{') braceDepth++;
+                    else if (c == '}') braceDepth--;
+                }
+
+                if (braceDepth < 0 || (line.trim().startsWith("Package ")
+                        && !line.contains(packageName))) break;
+
+                Matcher m = Pattern.compile(
+                        "([A-Z_]{3,40}):\\s*mode=(\\w+)(?:.*?time=\\+([\\d\\w ]+)\\s+ago)?")
+                        .matcher(line);
+                if (m.find()) {
+                    sb.append(m.group(1)).append(": ").append(m.group(2));
+                    if (m.group(3) != null) sb.append("; time=+").append(m.group(3)).append(" ago");
+                    sb.append("\n");
+                }
+            }
+            return sb.length() > 0 ? sb.toString() : null;
+        } catch (Exception e) {
+            Log.w(TAG, "parseDumpsysAppOpsForPackage failed: " + e.getMessage());
+            return null;
+        }
+    }
+
     private static final class OpDescriptor {
         final String               label;
         final String               explanation;
@@ -1521,10 +1889,6 @@ public class AppTriggerAnalyzersExt {
                 return new OpDescriptor("WAKE_LOCK",
                         context.getString(R.string.triggers_appops_wakelock_explanation),
                         TriggerInfo.Group.ACTIVE_NOW, TriggerInfo.Severity.HIGH);
-            case "START_FOREGROUND":
-                return new OpDescriptor("START_FOREGROUND",
-                        context.getString(R.string.triggers_appops_fg_explanation),
-                        TriggerInfo.Group.ACTIVE_NOW, TriggerInfo.Severity.HIGH);
             case "RUN_IN_BACKGROUND":
                 return new OpDescriptor("RUN_IN_BACKGROUND",
                         context.getString(R.string.triggers_appops_run_bg_explanation),
@@ -1534,13 +1898,36 @@ public class AppTriggerAnalyzersExt {
                         context.getString(R.string.triggers_appops_run_any_bg_explanation),
                         TriggerInfo.Group.CAN_WAKE, TriggerInfo.Severity.HIGH);
             case "SCHEDULE_EXACT_ALARM":
-                return new OpDescriptor("SCHEDULE_EXACT_ALARM",
-                        context.getString(R.string.triggers_appops_exact_alarm_explanation),
+                return new OpDescriptor("Exact Alarm",
+                        "Разрешение планировать точные аларм-срабатывания. " +
+                        "Android 14: deny по умолчанию для новых установок. " +
+                        "Если allow — приложение может точно будить устройство по таймеру.",
                         TriggerInfo.Group.CAN_WAKE, TriggerInfo.Severity.HIGH);
             case "USE_EXACT_ALARM":
                 return new OpDescriptor("USE_EXACT_ALARM",
                         context.getString(R.string.triggers_appops_exact_alarm_explanation),
                         TriggerInfo.Group.CAN_WAKE, TriggerInfo.Severity.HIGH);
+            case "USE_FULL_SCREEN_INTENT":
+                return new OpDescriptor("Full-Screen Intent",
+                        "Разрешение показывать уведомления поверх экрана блокировки. " +
+                        "Android 14+: разрешено только alarm/call приложениям. " +
+                        "Наличие у стороннего приложения — аномалия.",
+                        TriggerInfo.Group.CAN_WAKE, TriggerInfo.Severity.MEDIUM);
+            case "MANAGE_MEDIA":
+                return new OpDescriptor("Manage Media",
+                        "Управление медиа-сессиями других приложений. " +
+                        "На Android 15 связан с mediaProcessing FGS типом.",
+                        TriggerInfo.Group.OTHER, TriggerInfo.Severity.LOW);
+            case "RUN_USER_INITIATED_JOBS":
+                return new OpDescriptor("User-Initiated Jobs",
+                        "Разрешение запускать User-Initiated Jobs (длинные задачи по инициативе пользователя). " +
+                        "Android 14: замена 'long jobs'. Могут выполняться при заблокированном экране.",
+                        TriggerInfo.Group.CAN_WAKE, TriggerInfo.Severity.MEDIUM);
+            case "START_FOREGROUND":
+                return new OpDescriptor("Start FGS (blocked)",
+                        "Система заблокировала право запускать Foreground Service. " +
+                        "Приложение пытается работать в фоне но ограничено.",
+                        TriggerInfo.Group.OTHER, TriggerInfo.Severity.HIGH);
             case "RECEIVE_EXPLICIT_USER_INTERACTION":
                 return new OpDescriptor("USER_INTERACTION",
                         context.getString(R.string.triggers_appops_user_interaction_explanation),

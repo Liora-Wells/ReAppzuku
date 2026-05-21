@@ -53,6 +53,8 @@ public class AppTriggersAnalyzer {
         final boolean exact;
         final boolean whileIdle;
         final boolean isWakeup;
+        boolean pendingBroadcast;
+        boolean quotaExceeded;
 
         AlarmEntry(String type, String tag, long fireDiffMs, long intervalMs,
                    boolean exact, boolean whileIdle, boolean isWakeup) {
@@ -69,6 +71,10 @@ public class AppTriggersAnalyzer {
             return tag != null && (tag.contains("AlarmClock") || tag.contains("ALARM_CLOCK"));
         }
     }
+
+    private static final Pattern FGS_TIMEOUT_PAT     = Pattern.compile("remainingTimeLimitMs=(\\d+)");
+    private static final Pattern FGS_EXCEEDED_PAT    = Pattern.compile("timeLimitExceeded=(true|false)");
+    private static final Pattern FGS_ALLOW_START_PAT = Pattern.compile("getFgsAllowStart=([A-Z_]+)");
 
     static final class AlarmDumpsysParser {
 
@@ -143,7 +149,15 @@ public class AppTriggersAnalyzer {
                 }
             }
             if (tag == null || !tag.contains(packageName)) return null;
-            return new AlarmEntry(type, tag, fireDiff, interval, exact, whileIdle, isWakeup);
+            AlarmEntry entry = new AlarmEntry(type, tag, fireDiff, interval, exact, whileIdle, isWakeup);
+            for (String line : lines) {
+                String t = line.trim();
+                if (t.contains("pendingBroadcast=true") || t.contains("deferredBroadcast=true"))
+                    entry.pendingBroadcast = true;
+                if (t.contains("QUOTA_EXCEEDED") || t.contains("quotaExceeded=true"))
+                    entry.quotaExceeded = true;
+            }
+            return entry;
         }
 
         private long parseFireDiff(String line, long nowMs, long bootMs) {
@@ -195,12 +209,14 @@ public class AppTriggersAnalyzer {
     private final ShellManager           shellManager;
     private final Context                context;
     private final AppTriggerAnalyzersExt ext;
+    final int                            apiLevel;
 
     String cachedUid = null;
 
     public AppTriggersAnalyzer(Context context, ShellManager shellManager) {
         this.context      = context.getApplicationContext();
         this.shellManager = shellManager;
+        this.apiLevel     = Build.VERSION.SDK_INT;
         this.ext          = new AppTriggerAnalyzersExt(context, shellManager, this);
     }
 
@@ -357,7 +373,7 @@ public class AppTriggersAnalyzer {
         Pattern procPat  = Pattern.compile(
                 "ProcessRecord\\{[^}]+\\s" + Pattern.quote(packageName) + "/");
         Pattern adjPat   = Pattern.compile("\\badj=([-\\d]+)");
-        Pattern statePat = Pattern.compile("\\bcurProcState=([A-Z_]+)");
+        Pattern statePat = Pattern.compile("\\bcurProcState=(\\w+)");
 
         for (String line : output.split("\n")) {
             if (procPat.matcher(line).find()) {
@@ -408,6 +424,29 @@ public class AppTriggersAnalyzer {
     }
 
     private String mapProcState(String state, int adj) {
+        if (state != null) {
+            switch (state) {
+                case "0":  return "Persistent";
+                case "1":  return "Persistent (UI)";
+                case "2":  return "Foreground (Top)";
+                case "3":  return "Bound to Top";
+                case "4":  return "Foreground Service";
+                case "5":  return "Top (Sleeping)";
+                case "6":  return "Important Foreground";
+                case "7":  return "Important Background";
+                case "8":  return "Transient Background";
+                case "9":  return "Backup";
+                case "10": return "Service";
+                case "11": return "Receiver";
+                case "12": return "Home";
+                case "13": return "Last Activity";
+                case "14": return "Cached (Activity)";
+                case "15": return "Cached (Client)";
+                case "16": return "Cached (Empty)";
+                case "19": return "Cached (Empty)";
+                case "20": return "Non-existent";
+            }
+        }
         if (state != null) switch (state) {
             case "PERSISTENT":               return "Persistent";
             case "TOP":                      return "Foreground (Top)";
@@ -453,6 +492,8 @@ public class AppTriggersAnalyzer {
         String  notifImport   = null;
         boolean isForeground  = false;
         boolean isSticky      = false;
+        boolean isBfslPush    = false;
+        String  fgsAllowStartReason = null;
         List<String> binders  = new ArrayList<>();
 
         for (String line : output.split("\n")) {
@@ -461,7 +502,7 @@ public class AppTriggersAnalyzer {
             if (t.contains("ServiceRecord") && t.contains(packageName)) {
                 if (inBlock) {
                     emitServiceTriggers(list, currentSvc, packageName, fgType, notifChannel,
-                            notifImport, killable, isForeground, isSticky);
+                            notifImport, killable, isForeground, isSticky, isBfslPush, fgsAllowStartReason);
                 }
                 inBlock      = true;
                 currentSvc   = extractServiceShortName(t, packageName);
@@ -471,11 +512,13 @@ public class AppTriggersAnalyzer {
                 notifImport  = null;
                 isForeground = false;
                 isSticky     = false;
+                isBfslPush   = false;
+                fgsAllowStartReason = null;
                 continue;
             }
             if (inBlock && t.contains("ServiceRecord") && !t.contains(packageName)) {
                 emitServiceTriggers(list, currentSvc, packageName, fgType, notifChannel,
-                        notifImport, killable, isForeground, isSticky);
+                        notifImport, killable, isForeground, isSticky, isBfslPush, fgsAllowStartReason);
                 inBlock = false;
             }
             if (!inBlock) continue;
@@ -495,6 +538,44 @@ public class AppTriggersAnalyzer {
             if (t.contains("isForeground=true")) isForeground = true;
             if (t.contains("START_STICKY") || t.contains("startRequested=true")) isSticky = true;
 
+            if (t.contains("getFgsAllowStart=PUSH_MESSAGING")
+                    || t.contains("mAllowStart_noBinding=PUSH_MESSAGING")
+                    || t.contains("code:PUSH_MESSAGING")) {
+                isBfslPush = true;
+            }
+
+            Matcher mAllow = FGS_ALLOW_START_PAT.matcher(t);
+            if (mAllow.find()) {
+                String reason = mAllow.group(1);
+                if (!reason.equals("NONE") && !reason.equals("PUSH_MESSAGING")) {
+                    fgsAllowStartReason = reason;
+                }
+            }
+
+            if (apiLevel >= android.os.Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                Matcher mExceeded = FGS_EXCEEDED_PAT.matcher(t);
+                if (mExceeded.find() && "true".equals(mExceeded.group(1))) {
+                    list.add(new TriggerInfo(TriggerInfo.Group.ACTIVE_NOW,
+                            "FGS Timeout Exceeded",
+                            currentSvc + " · timeLimitExceeded",
+                            "Android 15: сервис типа dataSync или mediaProcessing превысил 6-часовой лимит. " +
+                            "Система должна была вызвать onTimeout() и остановить сервис.",
+                            TriggerInfo.Severity.HIGH));
+                }
+
+                Matcher mRemain = FGS_TIMEOUT_PAT.matcher(t);
+                if (mRemain.find()) {
+                    long remainMs = Long.parseLong(mRemain.group(1));
+                    if (remainMs < 30 * 60 * 1000L) {
+                        list.add(new TriggerInfo(TriggerInfo.Group.ACTIVE_NOW,
+                                "FGS Near Timeout",
+                                currentSvc + " · remaining=" + formatDuration(remainMs),
+                                "Android 15: сервису осталось менее 30 мин из 6-часового лимита (dataSync/mediaProcessing).",
+                                TriggerInfo.Severity.MEDIUM));
+                    }
+                }
+            }
+
             for (Pattern bp : BINDER_PATS) {
                 Matcher m = bp.matcher(t);
                 if (m.find()) {
@@ -507,7 +588,7 @@ public class AppTriggersAnalyzer {
 
         if (inBlock) {
             emitServiceTriggers(list, currentSvc, packageName, fgType, notifChannel,
-                    notifImport, killable, isForeground, isSticky);
+                    notifImport, killable, isForeground, isSticky, isBfslPush, fgsAllowStartReason);
         }
 
         if (!binders.isEmpty()) {
@@ -538,7 +619,8 @@ public class AppTriggersAnalyzer {
 
     private void emitServiceTriggers(List<TriggerInfo> list, String currentSvc,
             String packageName, String fgType, String notifChannel, String notifImport,
-            boolean killable, boolean isForeground, boolean isSticky) {
+            boolean killable, boolean isForeground, boolean isSticky, boolean isBfslPush,
+            String fgsAllowStartReason) {
         if (isForeground) {
             String svcName = currentSvc != null ? currentSvc : packageName;
             StringBuilder detail = new StringBuilder(svcName);
@@ -548,6 +630,8 @@ public class AppTriggersAnalyzer {
             detail.append(" · ").append(killable
                     ? context.getString(R.string.triggers_fg_service_killable)
                     : context.getString(R.string.triggers_fg_service_not_killable));
+            if (isBfslPush) detail.append(" · via FCM");
+            if (fgsAllowStartReason != null) detail.append(" · via ").append(fgsAllowStartReason);
             list.add(new TriggerInfo(TriggerInfo.Group.ACTIVE_NOW,
                     context.getString(R.string.triggers_cat_fg_service),
                     detail.toString(),
@@ -571,7 +655,8 @@ public class AppTriggersAnalyzer {
                 {0x001,"DATA_SYNC"},{0x002,"MEDIA_PLAYBACK"},{0x004,"PHONE_CALL"},
                 {0x008,"LOCATION"},{0x010,"CONNECTED_DEVICE"},{0x020,"MEDIA_PROJECTION"},
                 {0x040,"CAMERA"},{0x080,"MICROPHONE"},{0x100,"HEALTH"},
-                {0x200,"REMOTE_MESSAGING"},{0x400,"SYSTEM_EXEMPTED"},{0x800,"SHORT_SERVICE"}
+                {0x200,"REMOTE_MESSAGING"},{0x400,"SYSTEM_EXEMPTED"},{0x800,"SHORT_SERVICE"},
+                {0x1000,"MEDIA_PROCESSING"}
             };
             StringBuilder sb = new StringBuilder();
             for (Object[] b : bits) if ((mask & (int) b[0]) != 0) {
@@ -699,6 +784,8 @@ public class AppTriggersAnalyzer {
             }
         }
 
+        if (list.isEmpty()) list.addAll(analyzeWakelocksSysFsFallback(packageName, cachedUid));
+
         return list;
     }
 
@@ -748,6 +835,12 @@ public class AppTriggersAnalyzer {
         } catch (Exception e) { Log.w(TAG, "NetworkActivity/connectivity - ERROR: " + e.getMessage()); }
 
         long total = rxBytes + txBytes;
+        if (total == 0 && established.isEmpty()) {
+            long[] procBytes = readNetworkBytesProcFallback(uid);
+            rxBytes = procBytes[0];
+            txBytes = procBytes[1];
+            total = rxBytes + txBytes;
+        }
         if (total < 10 * 1024 && established.isEmpty()) return list;
 
         StringBuilder detail = new StringBuilder();
@@ -1286,14 +1379,100 @@ public class AppTriggersAnalyzer {
     }
 
 
-    private String resolveUid(String packageName) {
-        String out = shellManager.runShellCommandAndGetFullOutput(
-                "dumpsys package " + packageName + " | grep userId=");
-        if (out == null) return null;
-        for (String line : out.split("\n")) {
-            Matcher m = Pattern.compile("userId=(\\d+)").matcher(line);
-            if (m.find()) return m.group(1);
+    private long[] readNetworkBytesProcFallback(String uid) {
+        long rx = 0, tx = 0;
+        if (uid == null) return new long[]{0, 0};
+        try {
+            String stats = shellManager.runShellCommandAndGetFullOutput(
+                    "cat /proc/net/xt_qtaguid/stats | grep \" " + uid + " \"");
+            if (stats == null || stats.trim().isEmpty()) {
+                stats = shellManager.runShellCommandAndGetFullOutput(
+                        "cat /proc/uid_stat/" + uid + "/tcp_rcv");
+                if (stats != null && !stats.trim().isEmpty()) {
+                    try { rx = Long.parseLong(stats.trim()); } catch (NumberFormatException ignored) {}
+                }
+                String txStr = shellManager.runShellCommandAndGetFullOutput(
+                        "cat /proc/uid_stat/" + uid + "/tcp_snd");
+                if (txStr != null && !txStr.trim().isEmpty()) {
+                    try { tx = Long.parseLong(txStr.trim()); } catch (NumberFormatException ignored) {}
+                }
+                return new long[]{rx, tx};
+            }
+            for (String line : stats.split("\n")) {
+                String[] p = line.trim().split("\\s+");
+                if (p.length < 8) continue;
+                try {
+                    rx += Long.parseLong(p[5]);
+                    tx += Long.parseLong(p[7]);
+                } catch (NumberFormatException ignored) {}
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "network /proc fallback failed: " + e.getMessage());
         }
+        return new long[]{rx, tx};
+    }
+
+    private List<TriggerInfo> analyzeWakelocksSysFsFallback(String packageName, String uid) {
+        List<TriggerInfo> list = new ArrayList<>();
+        try {
+            String wakeupSrc = shellManager.runShellCommandAndGetFullOutput(
+                    "cat /sys/kernel/wakeup_sources | grep -i " + packageName);
+            if (wakeupSrc == null || wakeupSrc.trim().isEmpty()) {
+                wakeupSrc = shellManager.runShellCommandAndGetFullOutput(
+                        "cat /d/wakeup_sources 2>/dev/null | grep -i " + packageName);
+            }
+            if (wakeupSrc == null || wakeupSrc.trim().isEmpty()) return list;
+
+            Pattern namePat  = Pattern.compile("^(\\S+)");
+            Pattern totalPat = Pattern.compile("\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)");
+
+            for (String line : wakeupSrc.split("\n")) {
+                Matcher mN = namePat.matcher(line.trim());
+                Matcher mT = totalPat.matcher(line);
+                if (!mN.find() || !mT.find()) continue;
+
+                String name       = mN.group(1);
+                long   activeCount = Long.parseLong(mT.group(1));
+                long   totalTimeMs = Long.parseLong(mT.group(6));
+
+                if (activeCount == 0 && totalTimeMs == 0) continue;
+
+                list.add(new TriggerInfo(TriggerInfo.Group.ACTIVE_NOW,
+                        context.getString(R.string.triggers_cat_wakelock),
+                        "WakeSrc · " + name
+                        + " · " + context.getString(R.string.triggers_wakelock_detail_held,
+                                formatDuration(totalTimeMs))
+                        + " · " + activeCount + "×",
+                        "Источник пробуждения из /sys/kernel/wakeup_sources " +
+                        "(fallback для Android 14+ когда dumpsys power не показывает wakelock).",
+                        activeCount > 20 || totalTimeMs > 60_000
+                                ? TriggerInfo.Severity.HIGH : TriggerInfo.Severity.MEDIUM));
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "wakelock wakeup_sources fallback failed: " + e.getMessage());
+        }
+        return list;
+    }
+
+    private String resolveUid(String packageName) {
+        try {
+            String out = shellManager.runShellCommandAndGetFullOutput(
+                    "dumpsys package " + packageName);
+            if (out != null) {
+                Matcher m = Pattern.compile("(?:userId|appId|\\buid)=(\\d{4,6})").matcher(out);
+                if (m.find()) return m.group(1);
+            }
+        } catch (Exception e) { Log.w(TAG, "resolveUid/dumpsys failed: " + e.getMessage()); }
+
+        try {
+            String pmOut = shellManager.runShellCommandAndGetFullOutput(
+                    "pm list packages -U | grep " + packageName);
+            if (pmOut != null) {
+                Matcher m = Pattern.compile("uid:(\\d+)").matcher(pmOut);
+                if (m.find()) return m.group(1);
+            }
+        } catch (Exception e) { Log.w(TAG, "resolveUid/pm fallback failed: " + e.getMessage()); }
+
         return null;
     }
 
