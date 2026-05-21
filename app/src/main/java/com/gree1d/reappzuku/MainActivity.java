@@ -443,17 +443,18 @@ public class MainActivity extends BaseActivity {
             AppTriggersAnalyzer analyzer = new AppTriggersAnalyzer(MainActivity.this, shellManager);
             List<AppTriggersAnalyzer.TriggerInfo> triggers = analyzer.analyze(app.getPackageName());
             AppTriggersAnalyzer.AppStatus status = analyzer.resolveAppStatus(app.getPackageName());
+            int aggressionScore = analyzer.calculateAggressionScore(triggers);
 
             handler.post(() -> {
                 loadingDialog.dismiss();
                 if (isFinishing() || isDestroyed()) return;
-                showTriggersResult(app, triggers, status);
+                showTriggersResult(app, triggers, status, aggressionScore);
             });
         });
     }
 
     private void showTriggersResult(AppModel app, List<AppTriggersAnalyzer.TriggerInfo> triggers,
-                                     AppTriggersAnalyzer.AppStatus status) {
+                                     AppTriggersAnalyzer.AppStatus status, int aggressionScore) {
 
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_app_triggers, null);
         LinearLayout container = dialogView.findViewById(R.id.triggers_container);
@@ -480,10 +481,28 @@ public class MainActivity extends BaseActivity {
             LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT);
-            statusLp.setMargins(8, 4, 8, 16);
+            statusLp.setMargins(8, 4, 8, 4);
             statusView.setLayoutParams(statusLp);
             container.addView(statusView);
         }
+
+        TextView scoreView = new TextView(this);
+        String scoreLabelPart = getString(R.string.triggers_aggression_label_prefix);
+        String scoreFullText = scoreLabelPart + " " + aggressionScore + "/100";
+        SpannableString scoreSpannable = new SpannableString(scoreFullText);
+        int accentScore = sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM);
+        int scoreColor = (accentScore == ACCENT_CUSTOM)
+                ? sharedPreferences.getInt(KEY_ACCENT_CUSTOM_COLOR, ACCENT_CUSTOM_DEFAULT_COLOR)
+                : resolveColorAttr(androidx.appcompat.R.attr.colorPrimary);
+        scoreSpannable.setSpan(new ForegroundColorSpan(scoreColor), 0, scoreLabelPart.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        scoreView.setText(scoreSpannable);
+        scoreView.setTextSize(13f);
+        LinearLayout.LayoutParams scoreLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        scoreLp.setMargins(8, 4, 8, 16);
+        scoreView.setLayoutParams(scoreLp);
+        container.addView(scoreView);
 
         List<AppTriggersAnalyzer.TriggerInfo> activeNow = new ArrayList<>();
         List<AppTriggersAnalyzer.TriggerInfo> canWake   = new ArrayList<>();

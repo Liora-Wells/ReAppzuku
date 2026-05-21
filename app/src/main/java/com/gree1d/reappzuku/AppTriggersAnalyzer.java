@@ -1803,4 +1803,62 @@ public class AppTriggersAnalyzer {
         if (s == null) return null;
         return s.length() <= maxLen ? s : s.substring(0, maxLen);
     }
+
+    public int calculateAggressionScore(List<TriggerInfo> triggers) {
+        int score = 0;
+        for (TriggerInfo t : triggers) {
+            score += getTriggerScore(t);
+        }
+        return Math.min(score, 100);
+    }
+
+    private int getTriggerScore(TriggerInfo t) {
+        switch (t.group) {
+            case ACTIVE_NOW: return 3;
+            case CAN_WAKE:   return 2;
+            case OTHER:      return getOtherScore(t);
+            default:         return 0;
+        }
+    }
+
+    private int getOtherScore(TriggerInfo t) {
+        if (t.severity == TriggerInfo.Severity.INFO) return 0;
+        if (t.severity == TriggerInfo.Severity.LOW)  return 0;
+
+        String cat    = t.category != null ? t.category : "";
+        String detail = t.detail   != null ? t.detail   : "";
+
+        if (cat.equals(context.getString(R.string.triggers_cat_proc_state))) {
+            return 0;
+        }
+
+        if (cat.contains("throttled") || cat.contains("cancelled")) {
+            return 0;
+        }
+
+        if (cat.equals(context.getString(R.string.triggers_cat_provider))) {
+            return 0;
+        }
+
+        if (cat.equals(context.getString(R.string.triggers_cat_network))) {
+            return 0;
+        }
+
+        if (cat.equals(context.getString(R.string.triggers_cat_bucket))) {
+            return (t.severity == TriggerInfo.Severity.HIGH
+                    || t.severity == TriggerInfo.Severity.MEDIUM) ? 1 : 0;
+        }
+
+        if (cat.equals(context.getString(R.string.triggers_cat_chain_launch))
+                && (detail.contains("blocked") || detail.contains("BAL_BLOCKED"))) {
+            return 0;
+        }
+
+        if (cat.equals(context.getString(R.string.triggers_cat_fg_service))
+                && detail.contains("blocked")) {
+            return 0;
+        }
+
+        return 1;
+    }
 }
