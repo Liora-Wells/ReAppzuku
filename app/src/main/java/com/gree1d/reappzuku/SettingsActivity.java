@@ -26,6 +26,7 @@ import android.util.Log;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.View.MeasureSpec;
 import android.view.ViewGroup;
 import com.google.android.material.materialswitch.MaterialSwitch;
 import android.widget.PopupMenu;
@@ -55,6 +56,7 @@ import androidx.core.content.ContextCompat;
 import com.gree1d.reappzuku.databinding.ActivitySettingsBinding;
 
 import java.util.Set;
+import java.util.Map;
 import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
@@ -138,7 +140,7 @@ public class SettingsActivity extends BaseActivity implements SharedPreferences.
         sleepModeManager = new SleepModeManager(this.getApplicationContext(), handler, executor, shellManager);
         backupManager = new BackupManager(this);
         scheduler = new RestrictionsScheduler(
-                getApplicationContext(), handler, executor, shellManager, appManager);
+                getApplicationContext(), handler, executor, shellManager, appManager, sleepModeManager);
         additionalScenariosManager = new AdditionalScenariosManager(this);
         ramKillShortcutManager = new RamKillShortcutManager(this, shellManager);
         presetManager = new PresetManager(this);
@@ -423,6 +425,7 @@ public class SettingsActivity extends BaseActivity implements SharedPreferences.
         binding.layoutGithub.setOnClickListener(v -> openUrl("https://github.com/gree1d/ReAppzuku"));
         binding.layoutCheckUpdates.setOnClickListener(v -> UpdateChecker.checkForUpdatesManual(this, sharedPreferences));
         binding.layoutTelegram.setOnClickListener(v -> openUrl("https://t.me/AkM0o"));
+        binding.layoutSpecialThanks.setOnClickListener(v -> showSpecialThanksDialog());
         binding.textVersion.setOnClickListener(v -> {
             easterEggClickCount++;
             if (easterEggClickCount == EASTER_EGG_THRESHOLD) {
@@ -1025,6 +1028,41 @@ public class SettingsActivity extends BaseActivity implements SharedPreferences.
         if (messageView != null) messageView.setText(sb);
     }
 
+    private void showSpecialThanksDialog() {
+        String[] names = getResources().getStringArray(R.array.special_thanks_list);
+        StringBuilder sb = new StringBuilder();
+        sb.append(getString(R.string.special_thanks_desc)).append("\n\n");
+        for (String name : names) {
+            sb.append("• ").append(name).append("\n");
+        }
+
+        TextView textView = new TextView(this);
+        textView.setText(sb.toString().trim());
+        textView.setTextColor(getColor(R.color.text_primary));
+        textView.setTextSize(16f);
+        int paddingH = (int) (24 * getResources().getDisplayMetrics().density);
+        int paddingV = (int) (16 * getResources().getDisplayMetrics().density);
+        textView.setPadding(paddingH, paddingV, paddingH, paddingV);
+
+        int maxHeightPx = (int) (400 * getResources().getDisplayMetrics().density);
+        ScrollView scrollView = new ScrollView(this) {
+            @Override
+            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                int heightSpec = MeasureSpec.makeMeasureSpec(maxHeightPx, MeasureSpec.AT_MOST);
+                super.onMeasure(widthMeasureSpec, heightSpec);
+            }
+        };
+        scrollView.addView(textView);
+
+        AlertDialog dialog = new MaterialAlertDialogBuilder(this)
+                .setTitle(getString(R.string.special_thanks_title))
+                .setView(scrollView)
+                .setPositiveButton(getString(R.string.dialog_close), (d, w) -> d.dismiss())
+                .create();
+        dialog.show();
+        resetDialogButtonColors(dialog);
+    }
+
     private void updateSleepModeDelayText(long delayMs) {
         String[] labels = getResources().getStringArray(R.array.settings_sleep_mode_delay_labels);
         for (int i = 0; i < SLEEP_MODE_DELAYS_MS.length; i++) {
@@ -1068,11 +1106,11 @@ public class SettingsActivity extends BaseActivity implements SharedPreferences.
         dialog.show();
         resetDialogButtonColors(dialog);
 
-        sleepModeManager.loadSleepModeApps(allApps -> {
-            allApps = filterOutProtected(allApps);
+        sleepModeManager.loadSleepModeApps(rawApps -> {
+            List<AppModel> allApps = filterOutProtected(rawApps);
             Set<String> timerApps = sleepModeManager.getSleepModeApps();
             Set<String> permanentApps = sleepModeManager.getPermanentFreezeApps();
-            FilterAppsAdapter filterAdapter = new FilterAppsAdapter(this, allApps, timerApps, permanentApps, true);
+            FilterAppsAdapter filterAdapter = new FilterAppsAdapter(this, allApps, timerApps, permanentApps, sleepModeManager, true);
             if (sharedPreferences.getInt(KEY_ACCENT, ACCENT_SYSTEM) == ACCENT_CUSTOM)
                 filterAdapter.setAccentColor(sharedPreferences.getInt(KEY_ACCENT_CUSTOM_COLOR, ACCENT_CUSTOM_DEFAULT_COLOR));
             listView.setAdapter(filterAdapter);
@@ -1081,17 +1119,28 @@ public class SettingsActivity extends BaseActivity implements SharedPreferences.
             progressBar.setVisibility(View.GONE);
             listView.setVisibility(View.VISIBLE);
             searchBox.setVisibility(View.VISIBLE);
+            filterOptions.setVisibility(View.VISIBLE);
 
-            searchBox.addTextChangedListener(new android.text.TextWatcher() {
+            setupFilterListeners(dialogView, filterAdapter);
+            appManager.updateRunningState(allApps, () -> {
+                if (!dialog.isShowing()) return;
+                filterAdapter.notifyDataSetChanged();
+            });
+
+            searchBox.addTextChangedListener(new TextWatcher() {
                 @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
                 @Override public void onTextChanged(CharSequence s, int start, int before, int count) { filterAdapter.getFilter().filter(s); }
-                @Override public void afterTextChanged(android.text.Editable s) {}
+                @Override public void afterTextChanged(Editable s) {}
             });
+
+            filterAdapter.setOnSelectionChangedListener(() ->
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText(getString(R.string.dialog_apply)));
 
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
                 sleepModeManager.saveSleepModeApps(
                         filterAdapter.getTimerPackages(),
                         filterAdapter.getPermanentPackages(),
+                        filterAdapter.getFreezeMethodMap(),
                         null);
                 dialog.dismiss();
             });

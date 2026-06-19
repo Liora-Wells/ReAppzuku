@@ -1,6 +1,7 @@
 package com.gree1d.reappzuku;
 
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.Looper;
@@ -257,8 +258,7 @@ public class ShellManager {
         }
         return null;
     }
-
-
+    
     private boolean executeRootCommand(String command, Consumer<String> outputProcessor) {
         Process process = null;
         DataOutputStream os = null;

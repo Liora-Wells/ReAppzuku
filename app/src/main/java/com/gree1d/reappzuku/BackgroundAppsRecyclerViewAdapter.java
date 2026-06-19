@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.gree1d.reappzuku.databinding.ItemBinding;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class BackgroundAppsRecyclerViewAdapter extends RecyclerView.Adapter<BackgroundAppsRecyclerViewAdapter.ViewHolder> {
@@ -41,7 +42,7 @@ public class BackgroundAppsRecyclerViewAdapter extends RecyclerView.Adapter<Back
         selectionMode = items.stream().anyMatch(AppModel::isSelected);
         notifyDataSetChanged();
     }
-    
+
     public void updateCpu(List<AppModel> list) {
         items.clear();
         if (list != null) items.addAll(list);
@@ -118,8 +119,20 @@ public class BackgroundAppsRecyclerViewAdapter extends RecyclerView.Adapter<Back
             binding.badgePersistent.setVisibility(persistent ? View.VISIBLE : View.GONE);
             binding.badgeSystem.setVisibility(!persistent && app.isSystemApp() ? View.VISIBLE : View.GONE);
 
-            binding.whitelistIcon.setVisibility(app.isWhitelisted() ? View.VISIBLE : View.GONE);
             binding.protectedIcon.setVisibility(app.isProtected() ? View.VISIBLE : View.GONE);
+
+            boolean isTimerFreeze = context.getSharedPreferences(PreferenceKeys.PREFERENCES_NAME, Context.MODE_PRIVATE)
+                    .getStringSet(PreferenceKeys.KEY_SLEEP_MODE_APPS, Collections.emptySet())
+                    .contains(app.getPackageName());
+            if (isTimerFreeze) {
+                binding.statusIcon.setImageResource(R.drawable.ic_freeze);
+                binding.statusIcon.setVisibility(View.VISIBLE);
+            } else if (app.isWhitelisted()) {
+                binding.statusIcon.setImageResource(R.drawable.ic_whitelist);
+                binding.statusIcon.setVisibility(View.VISIBLE);
+            } else {
+                binding.statusIcon.setVisibility(View.GONE);
+            }
 
             binding.linear1.setSelected(false);
             binding.linearOverflow.setVisibility(View.GONE);

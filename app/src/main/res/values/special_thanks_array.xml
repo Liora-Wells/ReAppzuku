@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="special_thanks_list" translatable="false">
+        <item>Stepanchikk</item>
+        <item>elkorushka</item>
+        <item>Reiayanamiw</item>
+        <item>Vadimus35</item>
+        <item>bigcaesar8</item>
+        <item>ItIsMeYourMoon</item>
+        <item>kyklish</item>
+        <item>Gray201</item>
+        <item>a0a001</item>
+        <item>ExDeF</item>
+        <item>Cold Cat</item>
+        <item>extilsit</item>
+        <item>Vseproandroid / ВсёпроАндроид</item>
+        <item>TechyNoob1818</item>
+        <item>TechBotYouTube</item>
+        <item>Evgenij777Super</item>
+        <item>timschneeb</item> 
+        <item>Nikolai Melnikov</item>
+        <item>coder1448</item> 
+        <item>TechManofGreatness</item>
+        <item>Psychopath</item>
+        <item>+TopAndroid</item>
+    </string-array>
+</resources>

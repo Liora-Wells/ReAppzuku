@@ -8,8 +8,10 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.AutoCompleteTextView;
 import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
@@ -22,6 +24,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
+import androidx.core.graphics.Insets;
+import androidx.core.view.WindowInsetsCompat;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import androidx.core.content.ContextCompat;
 
@@ -1261,6 +1265,19 @@ public class StatisticsActivity extends BaseActivity {
         subtitleView.setVisibility(subtitle == null || subtitle.trim().isEmpty() ? View.GONE : View.VISIBLE);
         contentContainer.addView(contentView);
 
+        int screenHeight;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            android.view.WindowMetrics metrics = getWindowManager().getCurrentWindowMetrics();
+            Insets insets = WindowInsetsCompat.toWindowInsetsCompat(metrics.getWindowInsets())
+                    .getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            screenHeight = metrics.getBounds().height() - insets.top - insets.bottom;
+        } else {
+            DisplayMetrics dm = new DisplayMetrics();
+            getWindowManager().getDefaultDisplay().getMetrics(dm);
+            screenHeight = dm.heightPixels;
+        }
+        contentContainer.getLayoutParams().height = (int) (screenHeight * 0.55);
+
         return new MaterialAlertDialogBuilder(this).setTitle(title).setView(dialogView).create();
     }
 
@@ -1347,16 +1364,25 @@ public class StatisticsActivity extends BaseActivity {
             SleepModeLogManager.LogEntry entry = logEntries.get(i);
             String title = (entry.packageName == null || entry.packageName.equals("-"))
                     ? humanizeLogAction(entry.action) : entry.packageName;
+            String typeTag = sleepModeTypeTag(entry);
             String subtitle = entry.timestamp;
-            if (entry.action != null && !entry.action.trim().isEmpty()) {
-                subtitle = subtitle.isEmpty() ? humanizeLogAction(entry.action)
-                        : subtitle + " | " + humanizeLogAction(entry.action);
+            if (!typeTag.isEmpty()) {
+                subtitle = subtitle.isEmpty() ? typeTag : subtitle + " | " + typeTag;
             }
             String detail = humanizeLogOutcome(entry.outcome);
             rows.add(new SettingsSurfaceRow("#" + (i + 1), title, subtitle, detail,
                     resolveSleepModeLogBadge(entry.action), entry.packageName));
         }
         return rows;
+    }
+
+    private String sleepModeTypeTag(SleepModeLogManager.LogEntry entry) {
+        String type = entry.freezeType;
+        String method = entry.method;
+        if (type == null || type.equals("-")) return "";
+        String typeLabel = "permanent".equals(type) ? "perm" : "temp";
+        if (method == null || method.equals("-")) return typeLabel;
+        return typeLabel + " • " + method;
     }
 
     private List<SettingsSurfaceRow> buildSchedulerLogRows(List<RestrictionsScheduler.SchedulerLog.Entry> logEntries) {
@@ -1434,19 +1460,28 @@ public class StatisticsActivity extends BaseActivity {
 
     private String humanizeLogOutcome(String outcome) {
         if (outcome == null || outcome.trim().isEmpty()) return "";
-        switch (outcome.trim().toLowerCase()) {
-            case "ok": return getString(R.string.log_outcome_ok);
-            case "verified": return getString(R.string.log_outcome_verified);
-            case "failed": return getString(R.string.log_outcome_failed);
-            case "skipped": return getString(R.string.log_outcome_skipped);
-            case "verify-failed": return getString(R.string.log_outcome_verify_failed);
-            case "verify-unavailable": return getString(R.string.log_outcome_verify_unavailable);
-            case "battery-whitelist-removed": return getString(R.string.log_outcome_battery_whitelist_removed);
-            case "battery-whitelist-restored": return getString(R.string.log_outcome_battery_whitelist_restored);
-            default:
-                String n = outcome.trim().replace('-', ' ').replace('_', ' ');
-                return n.toUpperCase(Locale.US);
+        String trimmed = outcome.trim();
+        String suffix = "";
+        int parenIdx = trimmed.indexOf(" (");
+        if (parenIdx > 0 && trimmed.endsWith(")")) {
+            suffix = trimmed.substring(parenIdx);
+            trimmed = trimmed.substring(0, parenIdx);
         }
+        String localized;
+        switch (trimmed.toLowerCase()) {
+            case "ok": localized = getString(R.string.log_outcome_ok); break;
+            case "verified": localized = getString(R.string.log_outcome_verified); break;
+            case "failed": localized = getString(R.string.log_outcome_failed); break;
+            case "skipped": localized = getString(R.string.log_outcome_skipped); break;
+            case "verify-failed": localized = getString(R.string.log_outcome_verify_failed); break;
+            case "verify-unavailable": localized = getString(R.string.log_outcome_verify_unavailable); break;
+            case "battery-whitelist-removed": localized = getString(R.string.log_outcome_battery_whitelist_removed); break;
+            case "battery-whitelist-restored": localized = getString(R.string.log_outcome_battery_whitelist_restored); break;
+            default:
+                String n = trimmed.replace('-', ' ').replace('_', ' ');
+                localized = n.toUpperCase(Locale.US);
+        }
+        return localized + suffix;
     }
 
     private void openAppInfo(String packageName) {
