@@ -73,3 +73,6 @@ captures/
 # Log files
 *.log
 .ralph-state/
+
+/docs/superpowers/
+/docs/plans/

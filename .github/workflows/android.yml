@@ -10,10 +10,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
-    - name: set up JDK 17
+    - name: set up JDK 21
       uses: actions/setup-java@v5
       with:
-        java-version: '17'
+        java-version: '21'
         distribution: 'temurin'
         cache: gradle
 
@@ -21,7 +21,15 @@ jobs:
       run: chmod +x gradlew
 
     - name: Decode Keystore
-      run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
+      env:
+        KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      # secrets 上下文不能用在 step 的 if: 里，只能在 shell 内部判空
+      run: |
+        if [ -n "$KEYSTORE_BASE64" ]; then
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > app/release.keystore
+        else
+          echo "KEYSTORE_BASE64 is empty — skipping keystore decode, build will use debug signing"
+        fi
 
     - name: Update Lint Baseline
       run: ./gradlew updateLintBaseline
